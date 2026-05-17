@@ -41,8 +41,15 @@ public class JediController : MonoBehaviour
         if (isAttacking) return;
 
         // 1. Движение (WASD)
-        movement.x = Input.GetAxisRaw("Horizontal");
-        movement.y = Input.GetAxisRaw("Vertical");
+        // movement.x = Input.GetAxisRaw("Horizontal");
+        // movement.y = Input.GetAxisRaw("Vertical");
+
+        
+        movement = Vector2.zero;
+        if (Input.GetKey(KeyCode.W)) movement.y = 1;
+        if (Input.GetKey(KeyCode.S)) movement.y = -1;
+        if (Input.GetKey(KeyCode.A)) movement.x = -1;
+        if (Input.GetKey(KeyCode.D)) movement.x = 1;
 
         // 2. Поворот (Мышь ИЛИ Стрелочки)
         HandleRotation();
@@ -123,6 +130,7 @@ private void HandleRotation()
     }
 }
 
+
     private void RotateTowardsMouse()
     {
         Vector2 mouseWorldPos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
@@ -202,11 +210,19 @@ private void HandleRotation()
     private void UseForce()
     {
         if (forceSparksPrefab != null) Instantiate(forceSparksPrefab, transform.position, Quaternion.identity);
+        
         Collider2D[] hitObjects = Physics2D.OverlapCircleAll(transform.position, ultimateRadius);
         foreach (Collider2D hit in hitObjects)
         {
-            if (hit.CompareTag("Enemy")) hit.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);
-            else if (hit.GetComponent<BlasterBolt>() != null) Destroy(hit.gameObject);
+            // Теперь проверяем ТРИ условия: враги, черви и пули
+            if (hit.CompareTag("Enemy") || hit.CompareTag("Worm")) 
+            {
+                hit.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);
+            }
+            else if (hit.GetComponent<BlasterBolt>() != null) 
+            {
+                Destroy(hit.gameObject);
+            }
         }
     }
 }

@@ -1,62 +1,61 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
 
-[System.Serializable]
-public class JokeData
-{
-    public List<string> jokes;
-    public List<string> hints;
-}
-
 public class JokeManager : MonoBehaviour
 {
-    private JokeData jokeData;
+    public static JokeManager Instance { get; private set; }
+
+    // Список шуток
+    private readonly List<string> jokes = new List<string>
+    {
+        "Слава Холлидею! Мы застряли в этой симуляции с 1984 года.",
+        "Раньше графон был лучше... Хотя стоп, мы же в 8-битах.",
+        "Ошибка 404: Ваша меткость не найдена. С уважением, Имперская Академия.",
+        "Моя броня сделана из чистых пикселей. Жаль, что они такие хрупкие.",
+        "Не ешьте желтые пиксели. Это не кристаллы.",
+        "Кто-нибудь видел мои кассеты с синтвейвом? Без них стрелять не так весело.",
+        "На дедлайне хакатона даже Йода начал бы писать говнокод.",
+        "Серверы OASIS работают на Commodore 64. Пожалуйста, не дышите на них.",
+        "Джедаи не лагают. Они просто входят в состояние гиперпространства.",
+        "Это не баг, это Сила! (с) Ведущий программист OASIS."
+    };
+
+    // Список подсказок
+    private readonly List<string> hints = new List<string>
+    {
+        "Штурмовик 213: Почему они всегда отбивают наши пули? Это вообще законно?",
+        "Запись в логе: Если накопил 3 кристалла - жми ПРОБЕЛ. Это спасет тебя от Червя.",
+        "Из устава: При виде светового меча рекомендуется стрелять чаще. Спойлер: не помогает.",
+        "Совет дня: Космический Червь не знает, что такое стены. Используй Ульту, чтобы выжить.",
+        "Донесение: Аватар ищет Золотое Яйцо на 15 уровне. Протокол OASIS под угрозой.",
+        "Инструктаж: Нажми E, чтобы совершить рывок-вращение. Шинкуй врагов как салат!",
+        "Совет магистра: WASD для бега используй ты, а стрелки — чтобы мечом крутить.",
+        "Подсказка: Отраженная пуля становится зеленой и в три раза опаснее для штурмовика.",
+        "ВНИМАНИЕ: После 5 уровня Червь может прийти в любой момент. Слушай рык!",
+        "Хакатон-хинт: Собери 3 ключа, чтобы увидеть истинный финал Холлидея."
+    };
 
     void Awake()
     {
-        LoadJokes();
-    }
-
-    void LoadJokes()
-    {
-        TextAsset jsonFile = Resources.Load<TextAsset>("Jokes");
-        
-        if (jsonFile == null)
+        if (Instance == null)
         {
-            Debug.LogError("КРИТИЧЕСКАЯ ОШИБКА: Файл Jokes.json не найден в папке Resources!");
-            return;
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
         }
-
-        string rawText = jsonFile.text;
-
-        // Убираем возможный BOM (невидимый символ в начале файла)
-        if (rawText.StartsWith("\uFEFF"))
+        else
         {
-            rawText = rawText.Substring(1);
-        }
-
-        try 
-        {
-            jokeData = JsonUtility.FromJson<JokeData>(rawText);
-            Debug.Log("<color=green>Jokes.json успешно загружен!</color>");
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError("ОШИБКА ПАРСИНГА JSON: " + e.Message);
-            Debug.Log("Содержимое файла, которое пришло в скрипт: " + rawText);
+            Destroy(gameObject);
         }
     }
 
     public string GetRandomJoke()
     {
-        if (jokeData == null || jokeData.jokes == null || jokeData.jokes.Count == 0) return "Система OASIS подгружается...";
-        return jokeData.jokes[Random.Range(0, jokeData.jokes.Count)];
+        return jokes[Random.Range(0, jokes.Count)];
     }
 
     public string GetRandomHint()
     {
-        if (jokeData == null || jokeData.hints == null || jokeData.hints.Count == 0) return "Имперские базы данных недоступны...";
-        return jokeData.hints[Random.Range(0, jokeData.hints.Count)];
+        return hints[Random.Range(0, hints.Count)];
     }
 
     public string GetAnything()

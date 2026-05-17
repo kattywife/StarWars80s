@@ -27,7 +27,7 @@ public class TransitionPanel : MonoBehaviour
         else if (nextLevel == 5)
             finalString = "ВНИМАНИЕ: На этом уровне пробуждается Космический Червь. Он проходит сквозь стены!";
         else if (nextLevel == 10)
-            finalString = "СОВЕТ: Твоя Ульта (Пробел) не только убивает врагов, но и отпугивает Червя.";
+            finalString = "СОВЕТ: Используй силу (Пробел) не только для убийства врагов, но и чтобы отпугнуть Червя.";
         else
             finalString = jokeManager.GetAnything();
 

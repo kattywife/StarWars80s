@@ -18,6 +18,7 @@ public class LevelGenerator : MonoBehaviour
     public GameObject[] wallPrefabs; 
     public GameObject finishPrefab;  
     public GameObject crystalPrefab; 
+    public GameObject diskettePrefab;
 
     [Header("Настройки врагов")]
     public EnemySpawnRule[] enemyTypes; 
@@ -37,8 +38,7 @@ public class LevelGenerator : MonoBehaviour
     [Header("Настройки Космического Червя")]
     public GameObject wormPrefab;
     public int wormUnlockLevel = 5;
-    [Range(0, 100)]
-    public float wormSpawnChance = 30f; 
+    [Range(0, 100)] public float wormSpawnChance = 30f; 
     public float wormSpawnDelay = 5f;
 
     private float playerSize = 1f;
@@ -46,11 +46,11 @@ public class LevelGenerator : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.T))
-        {
-            SpawnSpaceWorm();
-            Debug.Log("DEBUG: Червь вызван вручную!");
-        }
+        // if (Input.GetKeyDown(KeyCode.T))
+        // {
+        //     SpawnSpaceWorm();
+        //     Debug.Log("DEBUG: Червь вызван вручную!");
+        // }
     }
 
    public void Generate(int level)
@@ -88,16 +88,39 @@ public class LevelGenerator : MonoBehaviour
         SpawnEnemies(level);
         SpawnCrystals();
 
-        if (finishPrefab != null) Instantiate(finishPrefab, finishPoint, Quaternion.identity);
+        if (level == 7 && GameManager.Instance != null && !GameManager.Instance.hasCrystalKey && diskettePrefab != null)
+        {
+            Vector2 pos = GetValidPointPos(playerSize * 0.5f);
+            if (pos != Vector2.zero)
+            {
+                Instantiate(diskettePrefab, pos, Quaternion.identity);
+                Debug.Log("<color=cyan>СЕКРЕТ: Дискета Холлидея появилась на уровне!</color>");
+            }
+        }
 
-        // 4. ПРОВЕРКА ЧЕРВЯ
+        if (finishPrefab != null) 
+        {
+            GameObject finish = Instantiate(finishPrefab, finishPoint, Quaternion.identity);
+            
+            // Если это последний уровень и все ключи собраны
+            if (level == 15 && GameManager.Instance.IsTrueVictory())
+            {
+                // Можно изменить цвет финиша на золотой
+                SpriteRenderer sr = finish.GetComponent<SpriteRenderer>();
+                if (sr != null) sr.color = new Color(1, 0.84f, 0); // Золотой цвет
+                finish.transform.localScale *= 1.5f; // Сделаем его больше
+            }
+        }
+
         if (!wormCalledThisLevel && level >= wormUnlockLevel)
         {
             float roll = Random.Range(0f, 100f);
             if (roll <= wormSpawnChance)
             {
                 wormCalledThisLevel = true; 
+                // Вызываем червя через несколько секунд после начала уровня
                 Invoke("SpawnSpaceWorm", wormSpawnDelay);
+                Debug.Log("<color=orange>ЧЕРВЬ ЗАПЛАНИРОВАН: появится через " + wormSpawnDelay + " сек.</color>");
             }
         }
     }
@@ -230,7 +253,7 @@ public class LevelGenerator : MonoBehaviour
     void ClearOldLevel()
     {
         CancelInvoke("SpawnSpaceWorm");
-        wormCalledThisLevel = false; // Сбрасываем флаг
+        wormCalledThisLevel = false; 
 
         string[] tags = { "Wall", "Enemy", "Finish", "Crystal", "Worm" };
         foreach (string tag in tags) 

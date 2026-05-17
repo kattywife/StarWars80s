@@ -91,4 +91,18 @@ public class SpaceWorm : MonoBehaviour
             currentRetreatSpeed = speed / 2f; 
         }
     }
+
+    public void TakeDamage()
+    {
+        // Оповещаем менеджер о получении Нефритового ключа (индекс 2)
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.CollectKey(2, "Нефритовый ключ (Убийца Червей)");
+        }
+
+        // Эффект при смерти (если есть звук или частицы, можно добавить здесь)
+        Debug.Log("<color=red>КОСМИЧЕСКИЙ ЧЕРВЬ ПОВЕРЖЕН!</color>");
+        
+        Destroy(gameObject);
+    }
 }

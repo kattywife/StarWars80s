@@ -10,6 +10,7 @@ TagManager:
   - Perimeter
   - Crystal
   - Worm
+  - Key3
   layers:
   - Default
   - TransparentFX

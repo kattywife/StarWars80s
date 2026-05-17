@@ -17,6 +17,21 @@ public class UIManager : MonoBehaviour
     public Sprite fullCrystal;
     public Sprite emptyCrystal;
 
+    [Header("Key Icons")]
+    public UnityEngine.UI.Image copperKeyUI;
+    public UnityEngine.UI.Image jadeKeyUI;
+    public UnityEngine.UI.Image crystalKeyUI;
+
+    // Добавь этот метод в конец класса UIManager
+    public void UpdateKeys(bool hasCopper, bool hasJade, bool hasCrystal)
+    {
+        // Если ключ есть - ставим полную непрозрачность и белый цвет (или золотой)
+        // Если ключа нет - делаем его серым и прозрачным
+        if (copperKeyUI != null) copperKeyUI.color = hasCopper ? Color.white : new Color(1, 1, 1, 0.2f);
+        if (jadeKeyUI != null) jadeKeyUI.color = hasJade ? Color.white : new Color(1, 1, 1, 0.2f);
+        if (crystalKeyUI != null) crystalKeyUI.color = hasCrystal ? Color.white : new Color(1, 1, 1, 0.2f);
+    }
+
     // Добавь новый метод в конец:
     public void UpdateCrystals(int currentCrystals)
     {

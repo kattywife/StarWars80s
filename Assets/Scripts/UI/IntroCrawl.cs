@@ -3,8 +3,8 @@ using UnityEngine;
 public class IntroCrawl : MonoBehaviour
 {
     public RectTransform textTransform;
-    public float scrollSpeed = 50f;
-    public float exitPositionY = 4000f; // Увеличили порог!
+    public float scrollSpeed = 60f; // 60-80 обычно лучше для чтения
+    public float exitPositionY = 2500f; 
 
     private bool isSkipping = false;
     private float timer = 0f;
@@ -12,30 +12,38 @@ public class IntroCrawl : MonoBehaviour
 
     void OnEnable()
     {
-        // СТАРТ: Ставим текст глубоко внизу. 
-        // -500 значит, что ВЕРХ текста (Pivot Y=1) спрятан на 500 пикселей под нижним краем.
-        textTransform.anchoredPosition = new Vector2(0, -500f);
+        // СТАРТ: 0 означает, что текст начнет появляться СРАЗУ.
+        // Если хочешь маленькую паузу, поставь -100.
+        textTransform.anchoredPosition = new Vector2(0, 0f);
         
         isSkipping = false;
         timer = 0f;
-        Debug.Log("ИНТРО: Поехали!");
+        
+        // АВТО-ПОРОГ: если высота текста 2000, то он должен пролететь 
+        // свою высоту + высоту экрана (примерно 1000).
+        // Это избавит тебя от лишнего ожидания в конце.
+        exitPositionY = textTransform.rect.height + 1200f;
+        
+        Debug.Log("ИНТРО: Начали! Текст появится сразу.");
     }
 
     void Update()
     {
         timer += Time.unscaledDeltaTime;
 
-        // Движение вверх
+        // Движение
         textTransform.anchoredPosition += Vector2.up * scrollSpeed * Time.unscaledDeltaTime;
 
-        // ПРОВЕРКА ПРОПУСКА
+        // Пропуск
         if (timer > canSkipTime && !isSkipping)
         {
-            if (Input.anyKeyDown) SkipIntro();
+            // if (Input.anyKeyDown || Input.GetMouseButtonDown(0)) SkipIntro()
+            if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)) SkipIntro();
         }
+        
 
-        // ПРОВЕРКА ЗАВЕРШЕНИЯ
-        // Теперь мы ждем, пока текст улетит на 4000 пикселей вверх
+            // if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)) SkipIntro();
+        // Завершение
         if (textTransform.anchoredPosition.y > exitPositionY && !isSkipping)
         {
             SkipIntro();
