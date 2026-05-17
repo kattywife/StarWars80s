@@ -3506,7 +3506,7 @@ MonoBehaviour:
   playerHealth: 3
   crystals: 0
   generator: {fileID: 562056914}
-  winLevel: 3
+  winLevel: 15
   totalEasterEggs: 3
   collectedEasterEggs: 0
   gameOverDelay: 2
