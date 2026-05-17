@@ -8,7 +8,7 @@ public class Stormtrooper : MonoBehaviour
     public float maxFireRate = 3f;
 
     private float nextFireTime;
-
+    
     void Start()
     {
         SetNextFireTime();

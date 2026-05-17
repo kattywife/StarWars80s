@@ -44,6 +44,15 @@ public class GameManager : MonoBehaviour
             MenuController.Instance.ShowMainMenu();
         }
     }
+    
+    public void PrepareNewGame()
+    {
+        currentLevel = 1;
+        playerHealth = 3;
+        crystals = 0;
+        collectedEasterEggs = 0;
+        // ТУТ ПУСТО, НИКАКИХ СТАРТОВ
+    }
 
     public void StartNewGame()
     {
@@ -63,6 +72,11 @@ public class GameManager : MonoBehaviour
         
         if (generator == null) generator = Object.FindAnyObjectByType<LevelGenerator>();
         if (generator != null) generator.Generate(currentLevel);
+        
+        if (currentLevel == 1)
+        {
+            Invoke("ShowFirstTutorial", 2f);
+        }
 
         if (UIManager.Instance != null)
         {
@@ -70,6 +84,19 @@ public class GameManager : MonoBehaviour
             UIManager.Instance.UpdateHearts(playerHealth);
             UIManager.Instance.UpdateCrystals(crystals);
         }
+    }
+
+    void ShowFirstTutorial()
+    {
+        if (TutorialManager.Instance != null)
+            TutorialManager.Instance.ShowTutorial("МЫШЬ: Вращение\nWASD: Движение");
+        
+        Invoke("ShowSecondTutorial", 5f);
+    }
+
+    void ShowSecondTutorial()
+    {
+        TutorialManager.Instance.ShowTutorial("ОТРАЖАЙ пули мечом,\nчтобы убить штурмовиков!");
     }
 
     public void LevelCompleted()
@@ -116,6 +143,7 @@ public class GameManager : MonoBehaviour
             PlayerPrefs.Save();
         }
     }
+    
 
     // ==========================================
     // ЛОГИКА СБОРА
