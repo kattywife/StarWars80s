@@ -65,6 +65,13 @@ public class JediController : MonoBehaviour
 
     void FixedUpdate()
     {
+        // ОСТАНОВКА ФИЗИЧЕСКОГО ВРАЩЕНИЯ
+        // Это не дает врагам или стенам закрутить джедая
+        if (!isAttacking)
+        {
+            rb.angularVelocity = 0f; 
+        }
+
         if (isAttacking) return;
         rb.MovePosition(rb.position + movement.normalized * moveSpeed * Time.fixedDeltaTime);
     }
@@ -72,42 +79,62 @@ public class JediController : MonoBehaviour
     [Header("Настройки вращения")]
     public float rotationSpeed = 300f; // Скорость вращения кнопками
 
-    private void HandleRotation()
+    // Замени метод HandleRotation и RotateTowardsMouse на эти:
+
+    // В начало Update или FixedUpdate добавь это:
+
+private void HandleRotation()
+{
+    bool keysPressed = false;
+    float targetAngle = rb.rotation;
+
+    // Вращение КНОПКАМИ (Стрелки)
+    if (Input.GetKey(KeyCode.LeftArrow))
     {
-        bool keysPressed = false;
-
-        // Вращение ВЛЕВО (против часовой)
-        if (Input.GetKey(KeyCode.LeftArrow))
-        {
-            rb.rotation += rotationSpeed * Time.deltaTime;
-            keysPressed = true;
-        }
-        
-        // Вращение ВПРАВО (по часовой)
-        if (Input.GetKey(KeyCode.RightArrow))
-        {
-            rb.rotation -= rotationSpeed * Time.deltaTime;
-            keysPressed = true;
-        }
-
-        // Если кнопки не зажаты, проверяем мышь
-        if (!keysPressed)
-        {
-            Vector2 currentMousePos = Input.mousePosition;
-            if (currentMousePos != lastMousePos)
-            {
-                RotateTowardsMouse();
-                lastMousePos = currentMousePos;
-            }
-        }
+        targetAngle += rotationSpeed * Time.deltaTime;
+        keysPressed = true;
     }
+    else if (Input.GetKey(KeyCode.RightArrow))
+    {
+        targetAngle -= rotationSpeed * Time.deltaTime;
+        keysPressed = true;
+    }
+
+    if (keysPressed)
+    {
+        rb.MoveRotation(targetAngle);
+        return; 
+    }
+
+    // Вращение МЫШЬЮ
+    Vector2 currentMousePos = Input.mousePosition;
+    if (Vector2.Distance(currentMousePos, lastMousePos) > 1f)
+    {
+        Vector3 mouseWorldPos = mainCamera.ScreenToWorldPoint(new Vector3(currentMousePos.x, currentMousePos.y, 10f));
+        Vector2 lookDir = (Vector2)mouseWorldPos - rb.position;
+
+        // "Мертвая зона" стала больше для стабильности
+        if (lookDir.sqrMagnitude > 0.5f) 
+        {
+            float angle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg;
+            rb.MoveRotation(angle - 90f);
+        }
+        lastMousePos = currentMousePos;
+    }
+}
 
     private void RotateTowardsMouse()
     {
-        Vector2 mousePos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 lookDir = mousePos - rb.position;
-        float angle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg;
-        rb.rotation = angle - 90f; 
+        Vector2 mouseWorldPos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
+        Vector2 lookDir = mouseWorldPos - rb.position;
+
+        // ПРОВЕРКА 2: Не слишком ли близко мышь к игроку?
+        // Если расстояние меньше 0.5 единиц, не поворачиваемся (чтобы не крутиться на месте)
+        if (lookDir.sqrMagnitude > 0.2f) 
+        {
+            float angle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg;
+            rb.rotation = angle - 90f; 
+        }
     }
 
     private IEnumerator PerformSpinAttack()
