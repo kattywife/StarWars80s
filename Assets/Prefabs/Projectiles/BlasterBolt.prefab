@@ -149,6 +149,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   speed: 10
+  deflectSparkPrefab: {fileID: 4645215529161891965, guid: 028cf705d37aabfb5acdff52eec03966, type: 3}
+  knockbackStrength: 5
+  freezeDuration: 0.04
+  shakeDuration: 0.1
+  shakeMagnitude: 0.15
 --- !u!50 &7599550507677294947
 Rigidbody2D:
   serializedVersion: 5

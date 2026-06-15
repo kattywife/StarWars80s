@@ -24,6 +24,10 @@ public class JediController : MonoBehaviour
     private Camera mainCamera;
     private Vector2 lastMousePos; // Для отслеживания движения мыши
 
+    [Header("Настройки отдачи (Knockback)")]
+    public float knockbackDecay = 8f; // Как быстро затухает отдача (чем выше, тем быстрее остановка)
+    private Vector2 knockbackVelocity; // Текущая скорость отдачи
+
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -73,14 +77,32 @@ public class JediController : MonoBehaviour
     void FixedUpdate()
     {
         // ОСТАНОВКА ФИЗИЧЕСКОГО ВРАЩЕНИЯ
-        // Это не дает врагам или стенам закрутить джедая
         if (!isAttacking)
         {
             rb.angularVelocity = 0f; 
         }
 
-        if (isAttacking) return;
-        rb.MovePosition(rb.position + movement.normalized * moveSpeed * Time.fixedDeltaTime);
+        // Вычисляем обычное движение (WASD) только если не атакуем
+        Vector2 currentMove = Vector2.zero;
+        if (!isAttacking)
+        {
+            currentMove = movement.normalized * moveSpeed;
+        }
+
+        // Объединяем скорость WASD движения и скорость отдачи
+        Vector2 finalVelocity = currentMove + knockbackVelocity;
+
+        // Двигаем тело через MovePosition (работает стабильно для любого Rigidbody Body Type)
+        rb.MovePosition(rb.position + finalVelocity * Time.fixedDeltaTime);
+
+        // Постепенно гасим отдачу до нуля, создавая плавное скольжение назад
+        knockbackVelocity = Vector2.Lerp(knockbackVelocity, Vector2.zero, Time.fixedDeltaTime * knockbackDecay);
+    }
+
+    public void ApplyKnockback(Vector2 direction, float force)
+    {
+        // Задаем начальную скорость отдачи в указанном направлении
+        knockbackVelocity = direction.normalized * force;
     }
 
     [Header("Настройки вращения")]

@@ -7,7 +7,13 @@ public class BlasterBolt : MonoBehaviour
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
 
-    // Используем Awake вместо Start, так как Awake срабатывает мгновенно при создании объекта
+    [Header("Настройки Сока (Juice Settings)")]
+    public GameObject deflectSparkPrefab; // Префаб искр при отражении (можно использовать уменьшенные искры ульты)
+    public float knockbackStrength = 8f;   // Сила отдачи джедая назад
+    public float freezeDuration = 0.04f;   // Продолжительность микро-паузы (40 миллисекунд)
+    public float shakeDuration = 0.1f;     // Длина тряски камеры
+    public float shakeMagnitude = 0.15f;   // Сила тряски камеры
+
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -16,7 +22,6 @@ public class BlasterBolt : MonoBehaviour
 
     void Start()
     {
-        // Запускаем пулю вперед при создании
         if (rb != null)
         {
             rb.linearVelocity = transform.up * speed;
@@ -24,39 +29,35 @@ public class BlasterBolt : MonoBehaviour
         
         if (spriteRenderer != null)
         {
-            spriteRenderer.color = Color.red; // Изначально красная
+            spriteRenderer.color = Color.red; 
         }
     }
 
     void OnTriggerEnter2D(Collider2D hitInfo)
     {
-        // Проверяем теги
         if (hitInfo.CompareTag("Wall") || hitInfo.CompareTag("Perimeter"))
         {
             Destroy(gameObject);
         }
         else if (hitInfo.CompareTag("Lightsaber") && !isDeflected)
         {
-            Deflect(hitInfo.transform);
+            Deflect(hitInfo.transform, hitInfo); // Передаем коллайдер меча для расчета точки контакта
         }
         else if (hitInfo.CompareTag("Player") && !isDeflected)
         {
-            // Урон игроку
             JediController jedi = hitInfo.GetComponent<JediController>();
             if (jedi != null) jedi.TakeDamage("Штурмовик попал в цель впервые в истории Галактики");
             Destroy(gameObject);
         }
         else if (hitInfo.CompareTag("Enemy") && isDeflected)
         {
-            // Урон врагу через SendMessage (универсально для всех типов штурмовиков)
             hitInfo.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);
             Destroy(gameObject);
         }
     }
 
-    public void Deflect(Transform saberTransform)
+    public void Deflect(Transform saberTransform, Collider2D saberCollider)
     {
-        // Если компоненты почему-то не нашлись в Awake, ищем их еще раз
         if (rb == null) rb = GetComponent<Rigidbody2D>();
         if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
 
@@ -64,12 +65,49 @@ public class BlasterBolt : MonoBehaviour
 
         if (spriteRenderer != null)
         {
-            spriteRenderer.color = Color.green; // Меняем цвет на зеленый
+            spriteRenderer.color = Color.green; 
         }
 
+        // ==========================================================
+        // 1. ФИЗИЧЕСКАЯ ОТДАЧА (KNOCKBACK)
+        // ==========================================================
+        JediController jedi = saberTransform.GetComponentInParent<JediController>();
+        if (jedi != null)
+        {
+            // Толкаем джедая назад, противоположно направлению меча
+            Vector2 pushDirection = -saberTransform.up;
+            jedi.ApplyKnockback(pushDirection, knockbackStrength);
+        }
+
+        // ==========================================================
+        // 2. СПАВН ИСКР В ТОЧКЕ КОНТАКТА
+        // ==========================================================
+        if (deflectSparkPrefab != null && saberCollider != null)
+        {
+            // Находим ближайшую точку на коллайдере меча к пуле
+            Vector3 contactPoint = saberCollider.bounds.ClosestPoint(transform.position);
+            Instantiate(deflectSparkPrefab, contactPoint, Quaternion.identity);
+        }
+
+        // ==========================================================
+        // 3. МИКРО-СТОП ВРЕМЕНИ (TIME FREEZE)
+        // ==========================================================
+        if (TimeFreeze.Instance != null)
+        {
+            TimeFreeze.Instance.Freeze(freezeDuration);
+        }
+
+        // ==========================================================
+        // 4. ТРЯСКА КАМЕРЫ (CAMERA SHAKE)
+        // ==========================================================
+        if (CameraShake.Instance != null)
+        {
+            CameraShake.Instance.Shake(shakeDuration, shakeMagnitude);
+        }
+
+        // Отражаем саму пулю
         if (rb != null)
         {
-            // Отражаем в сторону, куда смотрит меч, и ускоряем
             rb.linearVelocity = saberTransform.up * (speed * 1.5f);
             transform.up = saberTransform.up; 
         }
