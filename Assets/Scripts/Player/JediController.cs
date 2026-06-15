@@ -19,6 +19,21 @@ public class JediController : MonoBehaviour
     private float lastAttackTime;
     public bool isSpinning = false; // Для скрипта меча
 
+    [Header("Управление Стрелками (Keyboard Rotation)")]
+    public float arrowMaxSpeed = 360f;               // Максимальная скорость вращения
+    public AnimationCurve arrowAccelerationCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f); // График разгона
+    public float arrowAccelerationDuration = 0.25f;  // Время разгона до макс. скорости (в секундах)
+    public float arrowDecelerationDuration = 0.15f;  // Время затухания вращения после отпускания клавиш
+
+    [Header("Управление Мышью (Mouse Rotation)")]
+    public float mouseSmoothTime = 0.05f;             // Время сглаживания (чем меньше, тем быстрее и резче поворот за мышью)
+    private float mouseRotationVelocity;              // Внутренняя переменная для расчетов физики вращения
+
+    // Внутренние переменные разгона клавиатуры
+    private float arrowInputTimer = 0f;
+    private float arrowCurrentSpeed = 0f;
+    private float arrowLastDirection = 0f;
+
     private Rigidbody2D rb;
     private Vector2 movement;
     private Camera mainCamera;
@@ -114,39 +129,62 @@ public class JediController : MonoBehaviour
 
 private void HandleRotation()
 {
-    bool keysPressed = false;
-    float targetAngle = rb.rotation;
+    // 1. ПРОВЕРКА ВВОДА КЛАВИАТУРЫ
+    float inputDirection = 0f;
+    if (Input.GetKey(KeyCode.LeftArrow)) inputDirection = 1f;
+    else if (Input.GetKey(KeyCode.RightArrow)) inputDirection = -1f;
 
-    // Вращение КНОПКАМИ (Стрелки)
-    if (Input.GetKey(KeyCode.LeftArrow))
+    // 2. ЕСЛИ НАЖАТЫ СТРЕЛКИ (Разгон по графику)
+    if (inputDirection != 0f)
     {
-        targetAngle += rotationSpeed * Time.deltaTime;
-        keysPressed = true;
-    }
-    else if (Input.GetKey(KeyCode.RightArrow))
-    {
-        targetAngle -= rotationSpeed * Time.deltaTime;
-        keysPressed = true;
+        // Если резко сменили направление, сбрасываем таймер разгона
+        if (inputDirection != arrowLastDirection)
+        {
+            arrowInputTimer = 0f;
+        }
+        arrowLastDirection = inputDirection;
+
+        // Рассчитываем прогресс разгона
+        arrowInputTimer += Time.deltaTime;
+        float progress = Mathf.Clamp01(arrowInputTimer / arrowAccelerationDuration);
+        
+        // Оцениваем скорость по кастомной кривой (графику) из Инспектора
+        float speedMultiplier = arrowAccelerationCurve.Evaluate(progress);
+        
+        arrowCurrentSpeed = inputDirection * arrowMaxSpeed * speedMultiplier;
+
+        // Поворачиваем джедая
+        rb.MoveRotation(rb.rotation + arrowCurrentSpeed * Time.deltaTime);
+        return; // Блокируем поворот за мышью, пока держим стрелки
     }
 
-    if (keysPressed)
+    // 3. ЕСЛИ ОТПУСТИЛИ СТРЕЛКИ (Плавное затухание/Инерция)
+    if (arrowCurrentSpeed != 0f)
     {
-        rb.MoveRotation(targetAngle);
-        return; 
+        arrowInputTimer = 0f;
+        
+        // Линейно гасим скорость вращения до нуля
+        float decayStep = (arrowMaxSpeed / arrowDecelerationDuration) * Time.deltaTime;
+        arrowCurrentSpeed = Mathf.MoveTowards(arrowCurrentSpeed, 0f, decayStep);
+
+        rb.MoveRotation(rb.rotation + arrowCurrentSpeed * Time.deltaTime);
+        return;
     }
 
-    // Вращение МЫШЬЮ
+    // 4. ЕСЛИ КЛАВИАТУРА МОЛЧИТ — ВРАЩЕНИЕ МЫШЬЮ (Шелковистое слежение)
     Vector2 currentMousePos = Input.mousePosition;
     if (Vector2.Distance(currentMousePos, lastMousePos) > 1f)
     {
         Vector3 mouseWorldPos = mainCamera.ScreenToWorldPoint(new Vector3(currentMousePos.x, currentMousePos.y, 10f));
         Vector2 lookDir = (Vector2)mouseWorldPos - rb.position;
 
-        // "Мертвая зона" стала больше для стабильности
         if (lookDir.sqrMagnitude > 0.5f) 
         {
-            float angle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg;
-            rb.MoveRotation(angle - 90f);
+            float targetAngle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg - 90f;
+            
+            // Физически сглаживаем поворот, симулируя массу меча
+            float smoothedAngle = Mathf.SmoothDampAngle(rb.rotation, targetAngle, ref mouseRotationVelocity, mouseSmoothTime);
+            rb.MoveRotation(smoothedAngle);
         }
         lastMousePos = currentMousePos;
     }

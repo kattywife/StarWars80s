@@ -100,9 +100,9 @@ public class BlasterBolt : MonoBehaviour
         // ==========================================================
         // 4. ТРЯСКА КАМЕРЫ (CAMERA SHAKE)
         // ==========================================================
-        if (CameraShake.Instance != null)
+        if (CameraFollow.Instance != null)
         {
-            CameraShake.Instance.Shake(shakeDuration, shakeMagnitude);
+            CameraFollow.Instance.Shake(shakeDuration, shakeMagnitude);
         }
 
         // Отражаем саму пулю

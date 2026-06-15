@@ -9,7 +9,8 @@ public class GameManager : MonoBehaviour
     public int currentLevel = 1;
     public int playerHealth = 3;
     public int crystals = 0;
-    public LevelGenerator generator;
+    // public LevelGenerator generator;
+    public GridLevelGenerator generator;
 
     [Header("Настройки Игры")]
     public int winLevel = 15; 
@@ -116,7 +117,7 @@ public class GameManager : MonoBehaviour
         
         if (MenuController.Instance != null) MenuController.Instance.HideAll();
         
-        if (generator == null) generator = Object.FindAnyObjectByType<LevelGenerator>();
+        if (generator == null) generator = Object.FindAnyObjectByType<GridLevelGenerator>();
         if (generator != null) generator.Generate(currentLevel);
         
         if (currentLevel == 1)
