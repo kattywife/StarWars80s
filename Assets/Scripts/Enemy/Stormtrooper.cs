@@ -1,56 +1,28 @@
 ﻿using UnityEngine;
 
-public class Stormtrooper : MonoBehaviour
+// Наследуется от BaseStormtrooper вместо MonoBehaviour
+public class Stormtrooper : BaseStormtrooper
 {
-    public GameObject blasterBoltPrefab;
-    public Transform firePoint;
-    public float minFireRate = 1f;
-    public float maxFireRate = 3f;
+    [Header("Специфичные Настройки (Standard)")]
+    public float spreadAngle = 40f; 
 
-    private float nextFireTime;
-    
-    void Start()
+    protected override void ExecuteShooting()
     {
-        SetNextFireTime();
-    }
+        if (player == null || firePoint == null) return;
 
-    void Update()
-    {
-        if (Time.time >= nextFireTime)
-        {
-            ShootRandomly();
-            SetNextFireTime();
-        }
-    }
+        Vector2 direction = player.position - firePoint.position;
+        float angleToPlayer = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
 
-    private void SetNextFireTime()
-    {
-        nextFireTime = Time.time + Random.Range(minFireRate, maxFireRate);
-    }
+        float baseAngle = angleToPlayer - 90f;
+        float randomSpread = Random.Range(-spreadAngle, spreadAngle);
+        float finalAngle = baseAngle + randomSpread;
 
-    private void ShootRandomly()
-    {
-        float randomAngle = Random.Range(0f, 360f);
-        firePoint.rotation = Quaternion.Euler(0, 0, randomAngle);
+        firePoint.rotation = Quaternion.Euler(0, 0, finalAngle);
         Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
 
-        // ЗВУК: Выстрел штурмовика
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperShootSound);
         }
-    }
-
-    public void TakeDamage()
-    {
-        Debug.Log("Штурмовик повержен!");
-
-        // ЗВУК: Смерть штурмовика
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperDeathSound);
-        }
-
-        Destroy(gameObject);
     }
 }

@@ -43,6 +43,9 @@ public class JediController : MonoBehaviour
     public float knockbackDecay = 8f; // Как быстро затухает отдача (чем выше, тем быстрее остановка)
     private Vector2 knockbackVelocity; // Текущая скорость отдачи
 
+    [Header("Визуальные эффекты меча")]
+    public TrailRenderer saberTrail; // Перетащи сюда компонент Trail Renderer с лезвия меча
+
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -211,6 +214,9 @@ private void HandleRotation()
         isSpinning = true;
         lastAttackTime = Time.time;
         
+        // Включаем след от меча при замахе
+        if (saberTrail != null) saberTrail.emitting = true;
+
         StartCoroutine(FlashSaber());
 
         float elapsed = 0f;
@@ -223,6 +229,9 @@ private void HandleRotation()
 
         isAttacking = false;
         isSpinning = false;
+
+        // Выключаем след (он плавно сойдет на нет сам)
+        if (saberTrail != null) saberTrail.emitting = false;
     }
 
     private IEnumerator FlashSaber()

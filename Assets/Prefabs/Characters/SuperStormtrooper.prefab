@@ -199,6 +199,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   blasterBoltPrefab: {fileID: 3263495629223326411, guid: 2d64964c3120ae34d8260193d88655bf, type: 3}
   firePoint: {fileID: 8528332611809662127}
-  fireRate: 1.5
+  deathEffectPrefab: {fileID: 6347455697437721081, guid: 2bdf85e90e1f0d138a78b38483413891, type: 3}
+  minFireRate: 1
+  maxFireRate: 3
+  fireRateMultiplier: 1
   moveSpeed: 3
   visionRadius: 10

@@ -1,27 +1,18 @@
 using UnityEngine;
 
-public class SuperStormtrooper : MonoBehaviour
+public class SuperStormtrooper : BaseStormtrooper
 {
-    [Header("Стрельба")]
-    public GameObject blasterBoltPrefab;
-    public Transform firePoint;
-    public float fireRate = 1.5f;
-
-    [Header("Движение и Зрение")]
+    [Header("РЎРїРµС†РёС„РёС‡РЅС‹Рµ РќР°СЃС‚СЂРѕР№РєРё (Super)")]
     public float moveSpeed = 3f;
-    public float visionRadius = 10f; // Как далеко он видит
-    
-    private float nextFireTime;
-    private Transform player;
+    public float visionRadius = 10f;
+
     private Rigidbody2D rb;
     private bool canSeePlayer = false;
 
-    void Start()
+    protected override void Start()
     {
+        base.Start(); // Р’С‹Р·С‹РІР°РµС‚ Start() СЂРѕРґРёС‚РµР»СЊСЃРєРѕРіРѕ РєР»Р°СЃСЃР°, С‡С‚РѕР±С‹ РЅР°Р№С‚Рё РёРіСЂРѕРєР°
         rb = GetComponent<Rigidbody2D>();
-        nextFireTime = Time.time + fireRate;
-        GameObject p = GameObject.FindWithTag("Player");
-        if (p != null) player = p.transform;
     }
 
     void FixedUpdate()
@@ -32,20 +23,13 @@ public class SuperStormtrooper : MonoBehaviour
 
         if (canSeePlayer)
         {
-            // Бежим к игроку
+            // Р”РІРёР¶РµРЅРёРµ Рє РґР¶РµРґР°СЋ
             Vector2 direction = (player.position - transform.position).normalized;
             rb.MovePosition(rb.position + direction * moveSpeed * Time.fixedDeltaTime);
 
-            // Поворачиваем самого штурмовика к игроку
+            // РџРѕРІРѕСЂРѕС‚ С€С‚СѓСЂРјРѕРІРёРєР° РІ СЃС‚РѕСЂРѕРЅСѓ Р±РµРіР°
             float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
             rb.rotation = angle - 90f;
-
-            // Стреляем по таймеру
-            if (Time.time >= nextFireTime)
-            {
-                Shoot();
-                nextFireTime = Time.time + fireRate;
-            }
         }
     }
 
@@ -55,29 +39,24 @@ public class SuperStormtrooper : MonoBehaviour
         
         if (distanceToPlayer > visionRadius)
         {
-            canSeePlayer = false; // Слишком далеко
+            canSeePlayer = false; 
             return;
         }
 
         Vector2 direction = player.position - transform.position;
-        
-        // Пускаем луч. RaycastAll вернет всё, через что прошел луч
         RaycastHit2D[] hits = Physics2D.RaycastAll(transform.position, direction, visionRadius);
 
         canSeePlayer = false;
 
         foreach (var hit in hits)
         {
-            // Игнорируем триггеры (пули, кристаллы, радиус ульты) и других врагов
             if (hit.collider.isTrigger || hit.collider.CompareTag("Enemy")) continue;
 
-            // Если луч наткнулся на стену ДО игрока, значит мы его не видим
             if (hit.collider.CompareTag("Wall") || hit.collider.CompareTag("Perimeter"))
             {
                 break; 
             }
 
-            // Если луч наткнулся на игрока - мы его видим!
             if (hit.collider.CompareTag("Player"))
             {
                 canSeePlayer = true;
@@ -86,13 +65,17 @@ public class SuperStormtrooper : MonoBehaviour
         }
     }
 
-    private void Shoot()
+    protected override void ExecuteShooting()
     {
-        Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
-    }
-
-    public void TakeDamage()
-    {
-        Destroy(gameObject);
+        // РЎСѓРїРµСЂ-С€С‚СѓСЂРјРѕРІРёРє СЃС‚СЂРµР»СЏРµС‚ РїРѕ С‚Р°Р№РјРµСЂСѓ С‚РѕР»СЊРєРѕ С‚РѕРіРґР°, РєРѕРіРґР° РІРёРґРёС‚ РёРіСЂРѕРєР°
+        if (canSeePlayer && firePoint != null)
+        {
+            Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
+            
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperShootSound);
+            }
+        }
     }
 }
