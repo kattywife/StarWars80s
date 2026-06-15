@@ -4,8 +4,42 @@ using System.Collections;
 public class JediController : MonoBehaviour
 {
     [Header("Основные настройки")]
-    public float moveSpeed = 5f;
     public int health = 3;
+
+    [Header("Настройки Движения (Keyboard WASD)")]
+    public float maxMoveSpeed = 6f;                  // Максимальная скорость бега
+    public AnimationCurve moveAccelerationCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f); // График разгона
+    public float moveAccelerationDuration = 0.2f;    // Время разгона до макс. скорости (в секундах)
+    public float moveDecelerationDuration = 0.15f;   // Время затухания движения (скольжение после отпускания кнопок)
+    
+    private Vector2 activeMoveVelocity;              // Текущая сглаженная скорость движения
+    private float moveInputTimer = 0f;
+    private Vector2 lastMoveDirection = Vector2.zero;
+
+    [Header("Управление Стрелками (Keyboard Rotation)")]
+    public float arrowMaxSpeed = 360f;               
+    public AnimationCurve arrowAccelerationCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f); 
+    public float arrowAccelerationDuration = 0.25f;  
+    public float arrowDecelerationDuration = 0.15f;  
+
+    [Header("Управление Мышью (Mouse Rotation)")]
+    public float mouseSmoothTime = 0.05f;             
+    private float mouseRotationVelocity;              
+
+    [Header("Настройки Отдачи (Knockback)")]
+    public float knockbackDecay = 8f;                 // Скорость затухания отдачи
+    private Vector2 knockbackVelocity;                // Текущая скорость отдачи
+
+    [Header("Настройки Рывка (Dash Settings)")]
+    public KeyCode dashKey = KeyCode.LeftShift;       // Клавиша рывка
+    public float dashDistance = 4f;                   // Дистанция рывка в метрах (плитках)
+    public float dashDuration = 0.18f;                 // Длительность рывка (в секундах)
+    public float dashCooldown = 0.8f;                 // Перезарядка рывка
+    private bool isDashing = false;
+    private float lastDashTime;
+
+    // Публичное свойство неуязвимости (i-frames) для проверки другими скриптами
+    public bool IsInvincible => isDashing;
 
     [Header("Настройки Силы (Ульта)")]
     public float ultimateRadius = 5f;
@@ -17,34 +51,52 @@ public class JediController : MonoBehaviour
     public float attackCooldown = 0.5f; 
     private bool isAttacking = false;
     private float lastAttackTime;
-    public bool isSpinning = false; // Для скрипта меча
+    public bool isSpinning = false; 
 
-    [Header("Управление Стрелками (Keyboard Rotation)")]
-    public float arrowMaxSpeed = 360f;               // Максимальная скорость вращения
-    public AnimationCurve arrowAccelerationCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f); // График разгона
-    public float arrowAccelerationDuration = 0.25f;  // Время разгона до макс. скорости (в секундах)
-    public float arrowDecelerationDuration = 0.15f;  // Время затухания вращения после отпускания клавиш
+    [Header("Визуальные эффекты меча")]
+    public TrailRenderer saberTrail; 
 
-    [Header("Управление Мышью (Mouse Rotation)")]
-    public float mouseSmoothTime = 0.05f;             // Время сглаживания (чем меньше, тем быстрее и резче поворот за мышью)
-    private float mouseRotationVelocity;              // Внутренняя переменная для расчетов физики вращения
+    private Rigidbody2D rb;
+    private Vector2 movement;
+    private Camera mainCamera;
+    private Vector2 lastMousePos; 
 
     // Внутренние переменные разгона клавиатуры
     private float arrowInputTimer = 0f;
     private float arrowCurrentSpeed = 0f;
     private float arrowLastDirection = 0f;
 
-    private Rigidbody2D rb;
-    private Vector2 movement;
-    private Camera mainCamera;
-    private Vector2 lastMousePos; // Для отслеживания движения мыши
+    private void OnEnable()
+    {
+        // Сбрасываем все флаги состояний при воскрешении/рестарте
+        isDashing = false;
+        isAttacking = false;
+        isSpinning = false;
 
-    [Header("Настройки отдачи (Knockback)")]
-    public float knockbackDecay = 8f; // Как быстро затухает отдача (чем выше, тем быстрее остановка)
-    private Vector2 knockbackVelocity; // Текущая скорость отдачи
+        // Сбрасываем физику движения и отдачи
+        movement = Vector2.zero;
+        activeMoveVelocity = Vector2.zero;
+        knockbackVelocity = Vector2.zero;
+        moveInputTimer = 0f;
 
-    [Header("Визуальные эффекты меча")]
-    public TrailRenderer saberTrail; // Перетащи сюда компонент Trail Renderer с лезвия меча
+        // Сбрасываем таймеры разгона клавиатуры
+        arrowInputTimer = 0f;
+        arrowCurrentSpeed = 0f;
+        arrowLastDirection = 0f;
+
+        // Принудительно выключаем след меча, если он завис включенным
+        if (saberTrail != null)
+        {
+            saberTrail.emitting = false;
+        }
+
+        // Возвращаем игроку полную видимость
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            sr.color = new Color(1f, 1f, 1f, 1f);
+        }
+    }
 
     void Start()
     {
@@ -60,21 +112,29 @@ public class JediController : MonoBehaviour
 
     void Update()
     {
+        // Не принимаем обычные вводы во время рывка
+        if (isDashing) return;
+
+        // Поворот разрешен всегда, кроме режима атаки
+        if (!isAttacking)
+        {
+            HandleRotation();
+        }
+
         if (isAttacking) return;
 
         // 1. Движение (WASD)
-        // movement.x = Input.GetAxisRaw("Horizontal");
-        // movement.y = Input.GetAxisRaw("Vertical");
-
-        
         movement = Vector2.zero;
         if (Input.GetKey(KeyCode.W)) movement.y = 1;
         if (Input.GetKey(KeyCode.S)) movement.y = -1;
         if (Input.GetKey(KeyCode.A)) movement.x = -1;
         if (Input.GetKey(KeyCode.D)) movement.x = 1;
 
-        // 2. Поворот (Мышь ИЛИ Стрелочки)
-        HandleRotation();
+        // 2. Логика Рывка (Dash)
+        if (Input.GetKeyDown(dashKey) && Time.time >= lastDashTime + dashCooldown)
+        {
+            StartCoroutine(PerformDash());
+        }
 
         // 3. Ульта (Пробел)
         if (Input.GetKeyDown(KeyCode.Space))
@@ -94,118 +154,145 @@ public class JediController : MonoBehaviour
 
     void FixedUpdate()
     {
-        // ОСТАНОВКА ФИЗИЧЕСКОГО ВРАЩЕНИЯ
+        // Предотвращаем физическое закручивание
         if (!isAttacking)
         {
             rb.angularVelocity = 0f; 
         }
 
-        // Вычисляем обычное движение (WASD) только если не атакуем
-        Vector2 currentMove = Vector2.zero;
-        if (!isAttacking)
+        // Постепенно гасим отдачу/слайд в любом состоянии, чтобы она затухала плавно
+        knockbackVelocity = Vector2.Lerp(knockbackVelocity, Vector2.zero, Time.fixedDeltaTime * knockbackDecay);
+
+        // Блокируем WASD физику во время атаки или рывка
+        if (isAttacking || isDashing) return;
+
+        // Вычисляем направление ввода движения
+        Vector2 inputDir = movement.normalized;
+
+        if (inputDir.sqrMagnitude > 0f)
         {
-            currentMove = movement.normalized * moveSpeed;
+            // Если игрок резко изменил направление движения больше чем на 90 градусов (например, бежал Вправо и нажал Влево),
+            // мы сбрасываем таймер разгона, чтобы сымитировать инерцию торможения и разгона
+            if (Vector2.Dot(inputDir, lastMoveDirection) < 0.3f)
+            {
+                moveInputTimer = 0f;
+            }
+            lastMoveDirection = inputDir;
+
+            // Накапливаем время ввода для разгона по графику
+            moveInputTimer += Time.fixedDeltaTime;
+            float progress = Mathf.Clamp01(moveInputTimer / moveAccelerationDuration);
+            float speedMultiplier = moveAccelerationCurve.Evaluate(progress);
+
+            // Целевая скорость
+            Vector2 targetVelocity = inputDir * maxMoveSpeed * speedMultiplier;
+
+            // Сглаженно стремимся к целевой скорости
+            activeMoveVelocity = Vector2.MoveTowards(activeMoveVelocity, targetVelocity, (maxMoveSpeed / moveAccelerationDuration) * Time.fixedDeltaTime);
+        }
+        else
+        {
+            // Если кнопки WASD отпущены — плавно тормозим/скользим до полной остановки
+            moveInputTimer = 0f;
+            float stopStep = (maxMoveSpeed / moveDecelerationDuration) * Time.fixedDeltaTime;
+            activeMoveVelocity = Vector2.MoveTowards(activeMoveVelocity, Vector2.zero, stopStep);
         }
 
-        // Объединяем скорость WASD движения и скорость отдачи
-        Vector2 finalVelocity = currentMove + knockbackVelocity;
-
-        // Двигаем тело через MovePosition (работает стабильно для любого Rigidbody Body Type)
+        // Объединяем скорость движения и отдачу
+        Vector2 finalVelocity = activeMoveVelocity + knockbackVelocity;
+        
         rb.MovePosition(rb.position + finalVelocity * Time.fixedDeltaTime);
-
-        // Постепенно гасим отдачу до нуля, создавая плавное скольжение назад
-        knockbackVelocity = Vector2.Lerp(knockbackVelocity, Vector2.zero, Time.fixedDeltaTime * knockbackDecay);
     }
 
-    public void ApplyKnockback(Vector2 direction, float force)
+    private void HandleRotation()
     {
-        // Задаем начальную скорость отдачи в указанном направлении
-        knockbackVelocity = direction.normalized * force;
-    }
+        float inputDirection = 0f;
+        if (Input.GetKey(KeyCode.LeftArrow)) inputDirection = 1f;
+        else if (Input.GetKey(KeyCode.RightArrow)) inputDirection = -1f;
 
-    [Header("Настройки вращения")]
-    public float rotationSpeed = 300f; // Скорость вращения кнопками
+        if (inputDirection != 0f)
+        {
+            if (inputDirection != arrowLastDirection) arrowInputTimer = 0f;
+            arrowLastDirection = inputDirection;
 
-    // Замени метод HandleRotation и RotateTowardsMouse на эти:
+            arrowInputTimer += Time.deltaTime;
+            float progress = Mathf.Clamp01(arrowInputTimer / arrowAccelerationDuration);
+            float speedMultiplier = arrowAccelerationCurve.Evaluate(progress);
+            arrowCurrentSpeed = inputDirection * arrowMaxSpeed * speedMultiplier;
 
-    // В начало Update или FixedUpdate добавь это:
+            rb.MoveRotation(rb.rotation + arrowCurrentSpeed * Time.deltaTime);
+            return; 
+        }
 
-private void HandleRotation()
-{
-    // 1. ПРОВЕРКА ВВОДА КЛАВИАТУРЫ
-    float inputDirection = 0f;
-    if (Input.GetKey(KeyCode.LeftArrow)) inputDirection = 1f;
-    else if (Input.GetKey(KeyCode.RightArrow)) inputDirection = -1f;
-
-    // 2. ЕСЛИ НАЖАТЫ СТРЕЛКИ (Разгон по графику)
-    if (inputDirection != 0f)
-    {
-        // Если резко сменили направление, сбрасываем таймер разгона
-        if (inputDirection != arrowLastDirection)
+        if (arrowCurrentSpeed != 0f)
         {
             arrowInputTimer = 0f;
+            float decayStep = (arrowMaxSpeed / arrowDecelerationDuration) * Time.deltaTime;
+            arrowCurrentSpeed = Mathf.MoveTowards(arrowCurrentSpeed, 0f, decayStep);
+            rb.MoveRotation(rb.rotation + arrowCurrentSpeed * Time.deltaTime);
+            return;
         }
-        arrowLastDirection = inputDirection;
 
-        // Рассчитываем прогресс разгона
-        arrowInputTimer += Time.deltaTime;
-        float progress = Mathf.Clamp01(arrowInputTimer / arrowAccelerationDuration);
-        
-        // Оцениваем скорость по кастомной кривой (графику) из Инспектора
-        float speedMultiplier = arrowAccelerationCurve.Evaluate(progress);
-        
-        arrowCurrentSpeed = inputDirection * arrowMaxSpeed * speedMultiplier;
-
-        // Поворачиваем джедая
-        rb.MoveRotation(rb.rotation + arrowCurrentSpeed * Time.deltaTime);
-        return; // Блокируем поворот за мышью, пока держим стрелки
-    }
-
-    // 3. ЕСЛИ ОТПУСТИЛИ СТРЕЛКИ (Плавное затухание/Инерция)
-    if (arrowCurrentSpeed != 0f)
-    {
-        arrowInputTimer = 0f;
-        
-        // Линейно гасим скорость вращения до нуля
-        float decayStep = (arrowMaxSpeed / arrowDecelerationDuration) * Time.deltaTime;
-        arrowCurrentSpeed = Mathf.MoveTowards(arrowCurrentSpeed, 0f, decayStep);
-
-        rb.MoveRotation(rb.rotation + arrowCurrentSpeed * Time.deltaTime);
-        return;
-    }
-
-    // 4. ЕСЛИ КЛАВИАТУРА МОЛЧИТ — ВРАЩЕНИЕ МЫШЬЮ (Шелковистое слежение)
-    Vector2 currentMousePos = Input.mousePosition;
-    if (Vector2.Distance(currentMousePos, lastMousePos) > 1f)
-    {
-        Vector3 mouseWorldPos = mainCamera.ScreenToWorldPoint(new Vector3(currentMousePos.x, currentMousePos.y, 10f));
-        Vector2 lookDir = (Vector2)mouseWorldPos - rb.position;
-
-        if (lookDir.sqrMagnitude > 0.5f) 
+        Vector2 currentMousePos = Input.mousePosition;
+        if (Vector2.Distance(currentMousePos, lastMousePos) > 1f)
         {
-            float targetAngle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg - 90f;
+            Vector3 mouseWorldPos = mainCamera.ScreenToWorldPoint(new Vector3(currentMousePos.x, currentMousePos.y, 10f));
+            Vector2 lookDir = (Vector2)mouseWorldPos - rb.position;
+
+            if (lookDir.sqrMagnitude > 0.5f) 
+            {
+                float targetAngle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg - 90f;
+                float smoothedAngle = Mathf.SmoothDampAngle(rb.rotation, targetAngle, ref mouseRotationVelocity, mouseSmoothTime);
+                rb.MoveRotation(smoothedAngle);
+            }
+            lastMousePos = currentMousePos;
+        }
+    }
+
+    private IEnumerator PerformDash()
+    {
+        isDashing = true;
+        lastDashTime = Time.time;
+
+        // Вычисляем направление рывка: по нажатым WASD кнопкам, либо вперед (по направлению взгляда), если стоим
+        Vector2 dashDirection = movement.normalized;
+        if (dashDirection == Vector2.zero)
+        {
+            dashDirection = transform.up;
+        }
+
+        // Динамически вычисляем скорость по формуле: Скорость = Дистанция / Время
+        float calculatedDashSpeed = dashDistance / dashDuration;
+
+        // Визуальный эффект: Джедай становится полупрозрачным при рывке
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        Color originalColor = Color.white;
+        if (sr != null)
+        {
+            originalColor = sr.color;
+            sr.color = new Color(originalColor.r, originalColor.g, originalColor.b, 0.4f);
+        }
+
+        // Включаем след от меча для динамичности рывка
+        if (saberTrail != null) saberTrail.emitting = true;
+
+        float elapsed = 0f;
+        while (elapsed < dashDuration)
+        {
+            elapsed += Time.deltaTime;
             
-            // Физически сглаживаем поворот, симулируя массу меча
-            float smoothedAngle = Mathf.SmoothDampAngle(rb.rotation, targetAngle, ref mouseRotationVelocity, mouseSmoothTime);
-            rb.MoveRotation(smoothedAngle);
+            // Двигаем игрока со строго вычисленной скоростью
+            rb.MovePosition(rb.position + dashDirection * calculatedDashSpeed * Time.deltaTime);
+            yield return null;
         }
-        lastMousePos = currentMousePos;
-    }
-}
 
+        // Возвращаем исходную непрозрачность
+        if (sr != null) sr.color = originalColor;
+        
+        // Отключаем след от меча (если джедай в этот момент не атакует)
+        if (saberTrail != null && !isSpinning) saberTrail.emitting = false;
 
-    private void RotateTowardsMouse()
-    {
-        Vector2 mouseWorldPos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 lookDir = mouseWorldPos - rb.position;
-
-        // ПРОВЕРКА 2: Не слишком ли близко мышь к игроку?
-        // Если расстояние меньше 0.5 единиц, не поворачиваемся (чтобы не крутиться на месте)
-        if (lookDir.sqrMagnitude > 0.2f) 
-        {
-            float angle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg;
-            rb.rotation = angle - 90f; 
-        }
+        isDashing = false;
     }
 
     private IEnumerator PerformSpinAttack()
@@ -214,7 +301,6 @@ private void HandleRotation()
         isSpinning = true;
         lastAttackTime = Time.time;
         
-        // Включаем след от меча при замахе
         if (saberTrail != null) saberTrail.emitting = true;
 
         StartCoroutine(FlashSaber());
@@ -230,7 +316,6 @@ private void HandleRotation()
         isAttacking = false;
         isSpinning = false;
 
-        // Выключаем след (он плавно сойдет на нет сам)
         if (saberTrail != null) saberTrail.emitting = false;
     }
 
@@ -249,12 +334,18 @@ private void HandleRotation()
         saberSr.color = originalColor;
     }
 
-    // Находим метод TakeDamage и Die и добавляем туда вызовы звуков
+    public void ApplyKnockback(Vector2 direction, float force)
+    {
+        // Задаем начальную скорость отдачи в указанном направлении
+        knockbackVelocity = direction.normalized * force;
+    }
+
     public void TakeDamage(string source = "Лазерный луч")
     {
+        if (isDashing) return;
+
         health--;
         
-        // ЗВУК: Получение урона
         if (health > 0 && AudioManager.Instance != null)
         {
             AudioManager.Instance.PlaySFX(AudioManager.Instance.jediHitSound);
@@ -266,7 +357,6 @@ private void HandleRotation()
 
     private void Die(string source)
     {
-        // ЗВУК: Смерть джедая
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlaySFX(AudioManager.Instance.jediDeathSound);
@@ -283,7 +373,6 @@ private void HandleRotation()
         Collider2D[] hitObjects = Physics2D.OverlapCircleAll(transform.position, ultimateRadius);
         foreach (Collider2D hit in hitObjects)
         {
-            // Теперь проверяем ТРИ условия: враги, черви и пули
             if (hit.CompareTag("Enemy") || hit.CompareTag("Worm")) 
             {
                 hit.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);

@@ -41,13 +41,19 @@ public class BlasterBolt : MonoBehaviour
         }
         else if (hitInfo.CompareTag("Lightsaber") && !isDeflected)
         {
-            Deflect(hitInfo.transform, hitInfo); // Передаем коллайдер меча для расчета точки контакта
+            Deflect(hitInfo.transform, hitInfo);
         }
         else if (hitInfo.CompareTag("Player") && !isDeflected)
         {
             JediController jedi = hitInfo.GetComponent<JediController>();
-            if (jedi != null) jedi.TakeDamage("Штурмовик попал в цель впервые в истории Галактики");
-            Destroy(gameObject);
+            if (jedi != null) 
+            {
+                // Если джедай находится в рывке — пуля пролетает насквозь!
+                if (jedi.IsInvincible) return; 
+
+                jedi.TakeDamage("Штурмовик попал в цель впервые в истории Галактики");
+                Destroy(gameObject);
+            }
         }
         else if (hitInfo.CompareTag("Enemy") && isDeflected)
         {
