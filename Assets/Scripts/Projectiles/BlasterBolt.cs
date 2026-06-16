@@ -114,8 +114,8 @@ public class BlasterBolt : MonoBehaviour
         // Отражаем саму пулю
         if (rb != null)
         {
-            rb.linearVelocity = saberTransform.up * (speed * 1.5f);
-            transform.up = saberTransform.up; 
+            rb.linearVelocity = saberTransform.right * (speed * 1.5f);
+            transform.up = saberTransform.right; 
         }
     }
 }

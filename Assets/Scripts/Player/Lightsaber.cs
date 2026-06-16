@@ -6,23 +6,32 @@ public class Lightsaber : MonoBehaviour
 
     void Start()
     {
-        // Ищем скрипт джедая в родительском объекте
+        // РќР°С…РѕРґРёРј СЃРєСЂРёРїС‚ РґР¶РµРґР°СЏ РЅР° СЂРѕРґРёС‚РµР»СЊСЃРєРѕРј РѕР±СЉРµРєС‚Рµ
         jedi = GetComponentInParent<JediController>();
     }
 
+    // РЎСЂР°Р±Р°С‚С‹РІР°РµС‚ РІ РјРѕРјРµРЅС‚ РїРµСЂРІРѕРіРѕ РєР°СЃР°РЅРёСЏ
     void OnTriggerEnter2D(Collider2D other)
     {
-        // Убиваем врага ТОЛЬКО если джедай сейчас в состоянии прокрутки (isSpinning)
+        TryDamageEnemy(other);
+    }
+
+    // РЎСЂР°Р±Р°С‚С‹РІР°РµС‚ РєР°Р¶РґС‹Р№ РєР°РґСЂ, РїРѕРєР° РєРѕР»Р»Р°Р№РґРµСЂС‹ РїСЂРѕРґРѕР»Р¶Р°СЋС‚ СЃРѕРїСЂРёРєР°СЃР°С‚СЊСЃСЏ
+    void OnTriggerStay2D(Collider2D other)
+    {
+        TryDamageEnemy(other);
+    }
+
+    private void TryDamageEnemy(Collider2D other)
+    {
         if (other.CompareTag("Enemy"))
         {
+            // РќР°РЅРѕСЃРёРј СѓСЂРѕРЅ С‚РѕР»СЊРєРѕ РµСЃР»Рё РґР¶РµРґР°Р№ СЃРµР№С‡Р°СЃ РєСЂСѓС‚РёС‚СЃСЏ РІ Р°С‚Р°РєРµ
             if (jedi != null && jedi.isSpinning)
             {
-                other.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);
-                Debug.Log("Враг убит активным взмахом!");
+                other.gameObject.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);
+                Debug.Log("Р’СЂР°Рі РїРѕР»СѓС‡РёР» СѓСЂРѕРЅ РѕС‚ СЃРІРµС‚РѕРІРѕРіРѕ РјРµС‡Р°!");
             }
         }
-        
-        // Отражение пуль по-прежнему работает само по себе в скрипте пули, 
-        // так что джедай может защищаться пассивно.
     }
 }

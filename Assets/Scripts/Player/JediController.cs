@@ -45,9 +45,11 @@ public class JediController : MonoBehaviour
     public float ultimateRadius = 5f;
     public GameObject forceSparksPrefab;
 
-    [Header("Настройки Ближнего Боя")]
-    public GameObject saberBlade;      
-    public float attackDuration = 0.2f; 
+    [Header("Настройки Ближнего Боя (Melee Combat)")]
+    public GameObject lightsaberObject; 
+    public float saberDistance = 2f;                  // Расстояние меча от центра джедая (зона поражения)
+    public float attackDuration = 0.35f;              // Длительность атаки (0.35-0.4s рекомендуется для надежной физики)
+    public float spinDegrees = 360f;                  // На сколько градусов прокручивается джедай при атаке
     public float attackCooldown = 0.5f; 
     private bool isAttacking = false;
     private float lastAttackTime;
@@ -66,31 +68,35 @@ public class JediController : MonoBehaviour
     private float arrowCurrentSpeed = 0f;
     private float arrowLastDirection = 0f;
 
+    private void OnValidate()
+    {
+        // Автоматически обновляет положение меча в реальном времени в Редакторе Unity
+        if (lightsaberObject != null)
+        {
+            lightsaberObject.transform.localPosition = new Vector3(saberDistance, 0f, 0f);
+        }
+    }
+
     private void OnEnable()
     {
-        // Сбрасываем все флаги состояний при воскрешении/рестарте
         isDashing = false;
         isAttacking = false;
         isSpinning = false;
 
-        // Сбрасываем физику движения и отдачи
         movement = Vector2.zero;
         activeMoveVelocity = Vector2.zero;
         knockbackVelocity = Vector2.zero;
         moveInputTimer = 0f;
 
-        // Сбрасываем таймеры разгона клавиатуры
         arrowInputTimer = 0f;
         arrowCurrentSpeed = 0f;
         arrowLastDirection = 0f;
 
-        // Принудительно выключаем след меча, если он завис включенным
         if (saberTrail != null)
         {
             saberTrail.emitting = false;
         }
 
-        // Возвращаем игроку полную видимость
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
         if (sr != null)
         {
@@ -108,6 +114,12 @@ public class JediController : MonoBehaviour
         {
             health = GameManager.Instance.playerHealth;
         }
+
+        // Устанавливаем начальное положение меча при старте игры
+        if (lightsaberObject != null)
+        {
+            lightsaberObject.transform.localPosition = new Vector3(saberDistance, 0f, 0f);
+        }
     }
 
     void Update()
@@ -121,14 +133,15 @@ public class JediController : MonoBehaviour
             HandleRotation();
         }
 
-        if (isAttacking) return;
-
-        // 1. Движение (WASD)
+        // 1. Движение (WASD) - ТЕПЕРЬ ВСЕГДА СЧИТЫВАЕТСЯ, ДАЖЕ ВО ВРЕМЯ АТАКИ!
         movement = Vector2.zero;
         if (Input.GetKey(KeyCode.W)) movement.y = 1;
         if (Input.GetKey(KeyCode.S)) movement.y = -1;
         if (Input.GetKey(KeyCode.A)) movement.x = -1;
         if (Input.GetKey(KeyCode.D)) movement.x = 1;
+
+        // Блокируем остальные действия (рывок, ульту, новую атаку), если уже идет взмах меча
+        if (isAttacking) return;
 
         // 2. Логика Рывка (Dash)
         if (Input.GetKeyDown(dashKey) && Time.time >= lastDashTime + dashCooldown)
@@ -154,45 +167,38 @@ public class JediController : MonoBehaviour
 
     void FixedUpdate()
     {
-        // Предотвращаем физическое закручивание
         if (!isAttacking)
         {
             rb.angularVelocity = 0f; 
         }
 
-        // Постепенно гасим отдачу/слайд в любом состоянии, чтобы она затухала плавно
         knockbackVelocity = Vector2.Lerp(knockbackVelocity, Vector2.zero, Time.fixedDeltaTime * knockbackDecay);
 
-        // Блокируем WASD физику во время атаки или рывка
-        if (isAttacking || isDashing) return;
+        // Блокируем WASD физику только во время рывка (так как рывок сам двигает джедая)
+        // Во время атаки (isAttacking) бегать теперь разрешено!
+        if (isDashing) return;
 
         // Вычисляем направление ввода движения
         Vector2 inputDir = movement.normalized;
 
         if (inputDir.sqrMagnitude > 0f)
         {
-            // Если игрок резко изменил направление движения больше чем на 90 градусов (например, бежал Вправо и нажал Влево),
-            // мы сбрасываем таймер разгона, чтобы сымитировать инерцию торможения и разгона
             if (Vector2.Dot(inputDir, lastMoveDirection) < 0.3f)
             {
                 moveInputTimer = 0f;
             }
             lastMoveDirection = inputDir;
 
-            // Накапливаем время ввода для разгона по графику
             moveInputTimer += Time.fixedDeltaTime;
             float progress = Mathf.Clamp01(moveInputTimer / moveAccelerationDuration);
             float speedMultiplier = moveAccelerationCurve.Evaluate(progress);
 
-            // Целевая скорость
             Vector2 targetVelocity = inputDir * maxMoveSpeed * speedMultiplier;
 
-            // Сглаженно стремимся к целевой скорости
             activeMoveVelocity = Vector2.MoveTowards(activeMoveVelocity, targetVelocity, (maxMoveSpeed / moveAccelerationDuration) * Time.fixedDeltaTime);
         }
         else
         {
-            // Если кнопки WASD отпущены — плавно тормозим/скользим до полной остановки
             moveInputTimer = 0f;
             float stopStep = (maxMoveSpeed / moveDecelerationDuration) * Time.fixedDeltaTime;
             activeMoveVelocity = Vector2.MoveTowards(activeMoveVelocity, Vector2.zero, stopStep);
@@ -254,17 +260,14 @@ public class JediController : MonoBehaviour
         isDashing = true;
         lastDashTime = Time.time;
 
-        // Вычисляем направление рывка: по нажатым WASD кнопкам, либо вперед (по направлению взгляда), если стоим
         Vector2 dashDirection = movement.normalized;
         if (dashDirection == Vector2.zero)
         {
             dashDirection = transform.up;
         }
 
-        // Динамически вычисляем скорость по формуле: Скорость = Дистанция / Время
         float calculatedDashSpeed = dashDistance / dashDuration;
 
-        // Визуальный эффект: Джедай становится полупрозрачным при рывке
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
         Color originalColor = Color.white;
         if (sr != null)
@@ -273,23 +276,17 @@ public class JediController : MonoBehaviour
             sr.color = new Color(originalColor.r, originalColor.g, originalColor.b, 0.4f);
         }
 
-        // Включаем след от меча для динамичности рывка
         if (saberTrail != null) saberTrail.emitting = true;
 
         float elapsed = 0f;
         while (elapsed < dashDuration)
         {
             elapsed += Time.deltaTime;
-            
-            // Двигаем игрока со строго вычисленной скоростью
             rb.MovePosition(rb.position + dashDirection * calculatedDashSpeed * Time.deltaTime);
             yield return null;
         }
 
-        // Возвращаем исходную непрозрачность
         if (sr != null) sr.color = originalColor;
-        
-        // Отключаем след от меча (если джедай в этот момент не атакует)
         if (saberTrail != null && !isSpinning) saberTrail.emitting = false;
 
         isDashing = false;
@@ -305,13 +302,26 @@ public class JediController : MonoBehaviour
 
         StartCoroutine(FlashSaber());
 
+        // Запоминаем стартовый и целевой угол вращения для плавного Lerp-поворота
+        float startAngle = rb.rotation;
+        float targetAngle = startAngle + spinDegrees;
         float elapsed = 0f;
+
         while (elapsed < attackDuration)
         {
             elapsed += Time.deltaTime;
-            rb.rotation += (360f / attackDuration) * Time.deltaTime;
+            float progress = elapsed / attackDuration;
+            
+            // Меняем rb.MoveRotation на простой поворот rb.rotation,
+            // чтобы физика не отталкивала игрока назад при замахе!
+            float currentAngle = Mathf.Lerp(startAngle, targetAngle, progress);
+            rb.rotation = currentAngle; 
+            
             yield return null;
         }
+
+        // Гарантируем идеальный конечный угол по завершении замаха
+        rb.rotation = targetAngle;
 
         isAttacking = false;
         isSpinning = false;
@@ -321,7 +331,7 @@ public class JediController : MonoBehaviour
 
     private IEnumerator FlashSaber()
     {
-        SpriteRenderer saberSr = saberBlade.GetComponent<SpriteRenderer>();
+        SpriteRenderer saberSr = lightsaberObject.GetComponent<SpriteRenderer>();
         if (saberSr == null) yield break;
         Color originalColor = saberSr.color;
         while (isSpinning)
@@ -336,7 +346,6 @@ public class JediController : MonoBehaviour
 
     public void ApplyKnockback(Vector2 direction, float force)
     {
-        // Задаем начальную скорость отдачи в указанном направлении
         knockbackVelocity = direction.normalized * force;
     }
 
