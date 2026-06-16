@@ -48,10 +48,10 @@ public class BlasterBolt : MonoBehaviour
             JediController jedi = hitInfo.GetComponent<JediController>();
             if (jedi != null) 
             {
-                // Если джедай находится в рывке — пуля пролетает насквозь!
                 if (jedi.IsInvincible) return; 
 
-                jedi.TakeDamage("Штурмовик попал в цель впервые в истории Галактики");
+                // ПЕРЕДАЕМ transform.position пули для расчета направления отталкивания!
+                jedi.TakeDamage("Штурмовик попал в цель впервые в истории Галактики", transform.position);
                 Destroy(gameObject);
             }
         }

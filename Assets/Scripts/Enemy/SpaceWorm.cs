@@ -4,7 +4,7 @@ using System.Collections;
 public class SpaceWorm : MonoBehaviour
 {
     public float speed = 15f;
-    private float currentRetreatSpeed; // Скорость уползания
+    private float currentRetreatSpeed; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     public Color flashColor = Color.red;
 
     private Transform player;
@@ -17,7 +17,7 @@ public class SpaceWorm : MonoBehaviour
         GameObject p = GameObject.FindWithTag("Player");
         if (p != null) player = p.transform;
 
-        // Подписываемся на ульту
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
         GameManager.OnUltimateUsed += ScareAway;
     }
 
@@ -33,32 +33,32 @@ public class SpaceWorm : MonoBehaviour
         Vector2 direction;
         if (!isRetreating)
         {
-            // Летим К игроку
+            // пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
             direction = (player.position - transform.position).normalized;
             transform.position += (Vector3)direction * speed * Time.deltaTime;
         }
         else
         {
-            // Уползаем ОТ игрока
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
             direction = (transform.position - player.position).normalized;
             transform.position += (Vector3)direction * currentRetreatSpeed * Time.deltaTime;
             
-            // Если уполз далеко — удаляем
+            // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             if (Vector2.Distance(transform.position, player.position) > 40f) 
                 Destroy(gameObject);
         }
 
-        // Поворот: голова всегда по направлению движения
-        // Если летит боком, замени 'transform.right' на 'transform.up'
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        // пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅ 'transform.right' пїЅпїЅ 'transform.up'
         transform.right = direction; 
     }
 
-    // Это срабатывает, если джедай нажал ПРОБЕЛ
+    // пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
     private void ScareAway()
     {
         if (isRetreating) return;
         
-        // Улетает быстро (в 1.5 раза быстрее чем обычно), испугавшись силы
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅ 1.5 пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ), пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         currentRetreatSpeed = speed * 1.5f; 
         isRetreating = true;
         StartCoroutine(FlashEffect());
@@ -73,35 +73,32 @@ public class SpaceWorm : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D other)
     {
-        // Если коснулся джедая и еще не уползает
         if (other.CompareTag("Player") && !isRetreating)
         {
             JediController jedi = other.GetComponent<JediController>();
             if (jedi != null)
             {
-                // Отнимаем все жизни
-                for (int i = 0; i < 3; i++) jedi.TakeDamage("Космический червь славно поужинал"); 
+                // РџРµСЂРµРґР°РµРј transform.position С‡РµСЂРІСЏ!
+                for (int i = 0; i < 3; i++) jedi.TakeDamage("РљРѕСЃРјРёС‡РµСЃРєРёР№ С‡РµСЂРІСЊ СѓРєСѓСЃРёР» РґР¶РµРґР°СЏ", transform.position); 
             }
 
-            Debug.Log("Червь съел джедая и сытый уползает...");
+            Debug.Log("Р§РµСЂРІСЊ Р·Р°РґРµР» РґР¶РµРґР°СЏ...");
             
-            // ПЕРЕХОДИМ В РЕЖИМ ОТСТУПЛЕНИЯ ПОСЛЕ ЕДЫ
             isRetreating = true;
-            // Уползает в 2 раза медленнее, чем летел до этого
             currentRetreatSpeed = speed / 2f; 
         }
     }
 
     public void TakeDamage()
     {
-        // Оповещаем менеджер о получении Нефритового ключа (индекс 2)
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ 2)
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.CollectKey(2, "Нефритовый ключ (Убийца Червей)");
+            GameManager.Instance.CollectKey(2, "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)");
         }
 
-        // Эффект при смерти (если есть звук или частицы, можно добавить здесь)
-        Debug.Log("<color=red>КОСМИЧЕСКИЙ ЧЕРВЬ ПОВЕРЖЕН!</color>");
+        // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ)
+        Debug.Log("<color=red>пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ!</color>");
         
         Destroy(gameObject);
     }

@@ -7,12 +7,12 @@ public class JediController : MonoBehaviour
     public int health = 3;
 
     [Header("Настройки Движения (Keyboard WASD)")]
-    public float maxMoveSpeed = 6f;                  // Максимальная скорость бега
-    public AnimationCurve moveAccelerationCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f); // График разгона
-    public float moveAccelerationDuration = 0.2f;    // Время разгона до макс. скорости (в секундах)
-    public float moveDecelerationDuration = 0.15f;   // Время затухания движения (скольжение после отпускания кнопок)
+    public float maxMoveSpeed = 6f;                  
+    public AnimationCurve moveAccelerationCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f); 
+    public float moveAccelerationDuration = 0.2f;    
+    public float moveDecelerationDuration = 0.15f;   
     
-    private Vector2 activeMoveVelocity;              // Текущая сглаженная скорость движения
+    private Vector2 activeMoveVelocity;              
     private float moveInputTimer = 0f;
     private Vector2 lastMoveDirection = Vector2.zero;
 
@@ -27,19 +27,33 @@ public class JediController : MonoBehaviour
     private float mouseRotationVelocity;              
 
     [Header("Настройки Отдачи (Knockback)")]
-    public float knockbackDecay = 8f;                 // Скорость затухания отдачи
-    private Vector2 knockbackVelocity;                // Текущая скорость отдачи
+    public float knockbackDecay = 8f;                 
+    private Vector2 knockbackVelocity;                
 
     [Header("Настройки Рывка (Dash Settings)")]
-    public KeyCode dashKey = KeyCode.LeftShift;       // Клавиша рывка
-    public float dashDistance = 4f;                   // Дистанция рывка в метрах (плитках)
-    public float dashDuration = 0.18f;                 // Длительность рывка (в секундах)
-    public float dashCooldown = 0.8f;                 // Перезарядка рывка
+    public KeyCode dashKey = KeyCode.LeftShift;       
+    public float dashDistance = 4f;                   
+    public float dashDuration = 0.18f;                 
+    public float dashCooldown = 0.8f;                 
     private bool isDashing = false;
     private float lastDashTime;
 
-    // Публичное свойство неуязвимости (i-frames) для проверки другими скриптами
-    public bool IsInvincible => isDashing;
+    [Header("Настройки Урона и Сока (Damage Juice)")]
+    public float damageKnockbackForce = 12f;          // Сила отдачи при получении урона
+    public float damageSlowMultiplier = 0.5f;         // Замедление (0.5 = на 50% медленнее во время i-frames)
+    public float damageRecoveryDuration = 1.5f;       // Длительность неуязвимости и замедления (сек)
+    public float flickerInterval = 0.08f;             // Скорость мерцания спрайта
+
+    [Header("Настройки Выпадения Кристаллов")]
+    public bool dropCrystalsOnDamage = true;          // Должны ли выпадать кристаллы при уроне
+    public int crystalsToDrop = 1;                    // Сколько кристаллов выпадает за раз
+    public GameObject bouncingCrystalPrefab;          // Префаб кристалла со скриптом BouncingCrystal
+
+    private bool isRecovering = false;                // Находится ли игрок во фреймах неуязвимости
+    private float currentSpeedMultiplier = 1f;       // Динамический множитель скорости (для замедления)
+
+    // Публичное свойство неуязвимости (i-frames) для проверки пулями
+    public bool IsInvincible => isDashing || isRecovering;
 
     [Header("Настройки Силы (Ульта)")]
     public float ultimateRadius = 5f;
@@ -47,9 +61,9 @@ public class JediController : MonoBehaviour
 
     [Header("Настройки Ближнего Боя (Melee Combat)")]
     public GameObject lightsaberObject; 
-    public float saberDistance = 2f;                  // Расстояние меча от центра джедая (зона поражения)
-    public float attackDuration = 0.35f;              // Длительность атаки (0.35-0.4s рекомендуется для надежной физики)
-    public float spinDegrees = 360f;                  // На сколько градусов прокручивается джедай при атаке
+    public float saberDistance = 2f;                  
+    public float attackDuration = 0.35f;              
+    public float spinDegrees = 360f;                  
     public float attackCooldown = 0.5f; 
     private bool isAttacking = false;
     private float lastAttackTime;
@@ -63,14 +77,12 @@ public class JediController : MonoBehaviour
     private Camera mainCamera;
     private Vector2 lastMousePos; 
 
-    // Внутренние переменные разгона клавиатуры
     private float arrowInputTimer = 0f;
     private float arrowCurrentSpeed = 0f;
     private float arrowLastDirection = 0f;
 
     private void OnValidate()
     {
-        // Автоматически обновляет положение меча в реальном времени в Редакторе Unity
         if (lightsaberObject != null)
         {
             lightsaberObject.transform.localPosition = new Vector3(saberDistance, 0f, 0f);
@@ -82,11 +94,13 @@ public class JediController : MonoBehaviour
         isDashing = false;
         isAttacking = false;
         isSpinning = false;
+        isRecovering = false;
 
         movement = Vector2.zero;
         activeMoveVelocity = Vector2.zero;
         knockbackVelocity = Vector2.zero;
         moveInputTimer = 0f;
+        currentSpeedMultiplier = 1f;
 
         arrowInputTimer = 0f;
         arrowCurrentSpeed = 0f;
@@ -115,7 +129,6 @@ public class JediController : MonoBehaviour
             health = GameManager.Instance.playerHealth;
         }
 
-        // Устанавливаем начальное положение меча при старте игры
         if (lightsaberObject != null)
         {
             lightsaberObject.transform.localPosition = new Vector3(saberDistance, 0f, 0f);
@@ -124,32 +137,29 @@ public class JediController : MonoBehaviour
 
     void Update()
     {
-        // Не принимаем обычные вводы во время рывка
         if (isDashing) return;
 
-        // Поворот разрешен всегда, кроме режима атаки
         if (!isAttacking)
         {
             HandleRotation();
         }
 
-        // 1. Движение (WASD) - ТЕПЕРЬ ВСЕГДА СЧИТЫВАЕТСЯ, ДАЖЕ ВО ВРЕМЯ АТАКИ!
+        // Движение разрешено во время атаки
         movement = Vector2.zero;
         if (Input.GetKey(KeyCode.W)) movement.y = 1;
         if (Input.GetKey(KeyCode.S)) movement.y = -1;
         if (Input.GetKey(KeyCode.A)) movement.x = -1;
         if (Input.GetKey(KeyCode.D)) movement.x = 1;
 
-        // Блокируем остальные действия (рывок, ульту, новую атаку), если уже идет взмах меча
         if (isAttacking) return;
 
-        // 2. Логика Рывка (Dash)
+        // Логика Рывка (Dash)
         if (Input.GetKeyDown(dashKey) && Time.time >= lastDashTime + dashCooldown)
         {
             StartCoroutine(PerformDash());
         }
 
-        // 3. Ульта (Пробел)
+        // Ульта (Пробел)
         if (Input.GetKeyDown(KeyCode.Space))
         {
             if (GameManager.Instance != null && GameManager.Instance.TryUseUltimate())
@@ -158,7 +168,7 @@ public class JediController : MonoBehaviour
             }
         }
 
-        // 4. Ближний бой (E)
+        // Ближний бой (E)
         if (Input.GetKeyDown(KeyCode.E) && Time.time >= lastAttackTime + attackCooldown)
         {
             StartCoroutine(PerformSpinAttack());
@@ -174,11 +184,8 @@ public class JediController : MonoBehaviour
 
         knockbackVelocity = Vector2.Lerp(knockbackVelocity, Vector2.zero, Time.fixedDeltaTime * knockbackDecay);
 
-        // Блокируем WASD физику только во время рывка (так как рывок сам двигает джедая)
-        // Во время атаки (isAttacking) бегать теперь разрешено!
         if (isDashing) return;
 
-        // Вычисляем направление ввода движения
         Vector2 inputDir = movement.normalized;
 
         if (inputDir.sqrMagnitude > 0f)
@@ -193,7 +200,8 @@ public class JediController : MonoBehaviour
             float progress = Mathf.Clamp01(moveInputTimer / moveAccelerationDuration);
             float speedMultiplier = moveAccelerationCurve.Evaluate(progress);
 
-            Vector2 targetVelocity = inputDir * maxMoveSpeed * speedMultiplier;
+            // Применяем currentSpeedMultiplier к скорости движения (для замедления при уроне)
+            Vector2 targetVelocity = inputDir * (maxMoveSpeed * currentSpeedMultiplier) * speedMultiplier;
 
             activeMoveVelocity = Vector2.MoveTowards(activeMoveVelocity, targetVelocity, (maxMoveSpeed / moveAccelerationDuration) * Time.fixedDeltaTime);
         }
@@ -204,7 +212,6 @@ public class JediController : MonoBehaviour
             activeMoveVelocity = Vector2.MoveTowards(activeMoveVelocity, Vector2.zero, stopStep);
         }
 
-        // Объединяем скорость движения и отдачу
         Vector2 finalVelocity = activeMoveVelocity + knockbackVelocity;
         
         rb.MovePosition(rb.position + finalVelocity * Time.fixedDeltaTime);
@@ -302,7 +309,6 @@ public class JediController : MonoBehaviour
 
         StartCoroutine(FlashSaber());
 
-        // Запоминаем стартовый и целевой угол вращения для плавного Lerp-поворота
         float startAngle = rb.rotation;
         float targetAngle = startAngle + spinDegrees;
         float elapsed = 0f;
@@ -312,15 +318,12 @@ public class JediController : MonoBehaviour
             elapsed += Time.deltaTime;
             float progress = elapsed / attackDuration;
             
-            // Меняем rb.MoveRotation на простой поворот rb.rotation,
-            // чтобы физика не отталкивала игрока назад при замахе!
             float currentAngle = Mathf.Lerp(startAngle, targetAngle, progress);
             rb.rotation = currentAngle; 
             
             yield return null;
         }
 
-        // Гарантируем идеальный конечный угол по завершении замаха
         rb.rotation = targetAngle;
 
         isAttacking = false;
@@ -331,17 +334,17 @@ public class JediController : MonoBehaviour
 
     private IEnumerator FlashSaber()
     {
-        SpriteRenderer saberSr = lightsaberObject.GetComponent<SpriteRenderer>();
-        if (saberSr == null) yield break;
-        Color originalColor = saberSr.color;
+        SpriteRenderer sr = lightsaberObject.GetComponent<SpriteRenderer>();
+        if (sr == null) yield break;
+        Color originalColor = sr.color;
         while (isSpinning)
         {
-            saberSr.color = Color.white;
+            sr.color = Color.white;
             yield return new WaitForSeconds(0.05f);
-            saberSr.color = originalColor;
+            sr.color = originalColor;
             yield return new WaitForSeconds(0.05f);
         }
-        saberSr.color = originalColor;
+        sr.color = originalColor;
     }
 
     public void ApplyKnockback(Vector2 direction, float force)
@@ -349,19 +352,91 @@ public class JediController : MonoBehaviour
         knockbackVelocity = direction.normalized * force;
     }
 
-    public void TakeDamage(string source = "Лазерный луч")
+    public void TakeDamage(string source = "Лазерный луч", Vector2 attackerPosition = default)
     {
-        if (isDashing) return;
+        // Не получаем урон во время рывка или неуязвимости
+        if (isDashing || isRecovering) return;
 
         health--;
-        
+
+        // 1. Рассчитываем точную отдачу (Knockback) в сторону от источника урона
+        Vector2 pushDir = Vector2.zero;
+        if (attackerPosition != default)
+        {
+            pushDir = ((Vector2)transform.position - attackerPosition).normalized;
+        }
+        else
+        {
+            pushDir = -transform.up; // Откат назад, если источник неизвестен
+        }
+        ApplyKnockback(pushDir, damageKnockbackForce);
+
+        // 2. Логика выпадения кристаллов на землю
+        int currentCrystals = GameManager.Instance != null ? GameManager.Instance.crystals : 0;
+        if (dropCrystalsOnDamage && bouncingCrystalPrefab != null && currentCrystals > 0)
+        {
+            int actualDropCount = Mathf.Min(currentCrystals, crystalsToDrop);
+            
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.crystals -= actualDropCount;
+                if (UIManager.Instance != null) UIManager.Instance.UpdateCrystals(GameManager.Instance.crystals);
+            }
+
+            for (int i = 0; i < actualDropCount; i++)
+            {
+                Instantiate(bouncingCrystalPrefab, transform.position, Quaternion.identity);
+            }
+        }
+
+        // 3. Звук и UI сердечек
         if (health > 0 && AudioManager.Instance != null)
         {
             AudioManager.Instance.PlaySFX(AudioManager.Instance.jediHitSound);
         }
 
         if (UIManager.Instance != null) UIManager.Instance.UpdateHearts(health);
-        if (health <= 0) Die(source);
+        
+        if (health <= 0)
+        {
+            Die(source);
+            return;
+        }
+
+        // 4. Запускаем Корутину мерцания и замедления
+        StartCoroutine(DamageRecoveryRoutine());
+    }
+
+    private IEnumerator DamageRecoveryRoutine()
+    {
+        isRecovering = true;
+        currentSpeedMultiplier = damageSlowMultiplier;
+
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        Color originalColor = Color.white;
+        if (sr != null) originalColor = sr.color;
+
+        float elapsed = 0f;
+        bool isVisible = true;
+
+        while (elapsed < damageRecoveryDuration)
+        {
+            elapsed += flickerInterval;
+            isVisible = !isVisible;
+
+            // Мерцание прозрачностью спрайта
+            if (sr != null)
+            {
+                sr.color = new Color(originalColor.r, originalColor.g, originalColor.b, isVisible ? 1f : 0.2f);
+            }
+
+            yield return new WaitForSecondsRealtime(flickerInterval);
+        }
+
+        // Восстанавливаем дефолтное состояние по завершении i-frames
+        if (sr != null) sr.color = originalColor;
+        currentSpeedMultiplier = 1f;
+        isRecovering = false;
     }
 
     private void Die(string source)
