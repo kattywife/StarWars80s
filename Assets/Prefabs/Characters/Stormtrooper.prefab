@@ -141,9 +141,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   blasterBoltPrefab: {fileID: 3263495629223326411, guid: 2d64964c3120ae34d8260193d88655bf, type: 3}
   firePoint: {fileID: 7623125221459054031}
+  deathEffectPrefab: {fileID: 6347455697437721081, guid: 2bdf85e90e1f0d138a78b38483413891, type: 3}
   minFireRate: 0
   maxFireRate: 3
-  deathEffectPrefab: {fileID: 6347455697437721081, guid: 2bdf85e90e1f0d138a78b38483413891, type: 3}
+  fireRateMultiplier: 1.5
+  spreadAngle: 40
 --- !u!50 &4860363431111773652
 Rigidbody2D:
   serializedVersion: 5
@@ -169,7 +171,7 @@ Rigidbody2D:
     m_Bits: 0
   m_Interpolate: 0
   m_SleepingMode: 1
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
   m_Constraints: 0
 --- !u!1 &7418160099850359504
 GameObject:
