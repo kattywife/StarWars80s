@@ -7603,7 +7603,7 @@ CompositeCollider2D:
   m_CompositeOperation: 0
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
-  m_GeometryType: 0
+  m_GeometryType: 1
   m_GenerationType: 0
   m_EdgeRadius: 0
   m_ColliderPaths:
@@ -11563,14 +11563,21 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  arrowAccelerationDuration: 0.25
-  arrowDecelerationDuration: 0.1
+  arrowAccelerationDuration: 0.15
+  arrowDecelerationDuration: 0.07
   mouseSmoothTime: 0.05
   knockbackDecay: 8
   dashKey: 304
   dashDistance: 4
   dashDuration: 0.18
   dashCooldown: 0.8
+  damageKnockbackForce: 12
+  damageSlowMultiplier: 0.5
+  damageRecoveryDuration: 1.5
+  flickerInterval: 0.08
+  dropCrystalsOnDamage: 1
+  crystalsToDrop: 1
+  bouncingCrystalPrefab: {fileID: 8077023669359216344, guid: 02f66e7e6e82370b2b8bb7938112c420, type: 3}
   ultimateRadius: 5
   forceSparksPrefab: {fileID: 3301238599944241888, guid: 3bca95f9631770241ad1932a545b0075, type: 3}
   lightsaberObject: {fileID: 2132109042}
@@ -11642,7 +11649,7 @@ Rigidbody2D:
   m_Interpolate: 1
   m_SleepingMode: 1
   m_CollisionDetection: 1
-  m_Constraints: 0
+  m_Constraints: 4
 --- !u!212 &2121377891
 SpriteRenderer:
   m_ObjectHideFlags: 0
