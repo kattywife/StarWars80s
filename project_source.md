@@ -8529,81 +8529,29 @@ using UnityEngine;
 
 public class SuperStormtrooper : BaseStormtrooper
 {
-    [Header("Специфичные Настройки (Super)")]
-    public float moveSpeed = 3f;
-    public float visionRadius = 10f;
+    [Header("Настройки Преследования")]
+    public float chaseSpeed = 3.5f;
 
-    private Rigidbody2D rb;
-    private bool canSeePlayer = false;
-
-    protected override void Start()
+    protected override void Update()
     {
-        base.Start(); // Вызывает Start() родительского класса, чтобы найти игрока
-        rb = GetComponent<Rigidbody2D>();
-    }
+        base.Update();
 
-    void FixedUpdate()
-    {
-        if (player == null) return;
-
-        CheckLineOfSight();
-
-        if (canSeePlayer)
+        // У супер-штурмовика особенность: он сокращает дистанцию в режиме атаки
+        if (currentState == EnemyState.Attack && player != null)
         {
-            // Движение к джедаю
-            Vector2 direction = (player.position - transform.position).normalized;
-            rb.MovePosition(rb.position + direction * moveSpeed * Time.fixedDeltaTime);
-
-            // Поворот штурмовика в сторону бега
-            float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-            rb.rotation = angle - 90f;
-        }
-    }
-
-    private void CheckLineOfSight()
-    {
-        float distanceToPlayer = Vector2.Distance(transform.position, player.position);
-        
-        if (distanceToPlayer > visionRadius)
-        {
-            canSeePlayer = false; 
-            return;
-        }
-
-        Vector2 direction = player.position - transform.position;
-        RaycastHit2D[] hits = Physics2D.RaycastAll(transform.position, direction, visionRadius);
-
-        canSeePlayer = false;
-
-        foreach (var hit in hits)
-        {
-            if (hit.collider.isTrigger || hit.collider.CompareTag("Enemy")) continue;
-
-            if (hit.collider.CompareTag("Wall") || hit.collider.CompareTag("Perimeter"))
-            {
-                break; 
-            }
-
-            if (hit.collider.CompareTag("Player"))
-            {
-                canSeePlayer = true;
-                break;
-            }
+            Vector2 dir = (player.position - transform.position).normalized;
+            rb.MovePosition(rb.position + dir * chaseSpeed * Time.deltaTime);
         }
     }
 
     protected override void ExecuteShooting()
     {
-        // Супер-штурмовик стреляет по таймеру только тогда, когда видит игрока
-        if (canSeePlayer && firePoint != null)
-        {
-            Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
-            
-            if (AudioManager.Instance != null)
-            {
-                AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperShootSound);
-            }
-        }
+        if (player == null || firePoint == null) return;
+
+        Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperShootSound);
     }
 }-e 
 ```
@@ -8614,21 +8562,18 @@ using UnityEngine;
 
 public class EliteStormtrooper : BaseStormtrooper
 {
-    // Элитный стреляет без разброса (напрямую в игрока)
     protected override void ExecuteShooting()
     {
         if (player == null || firePoint == null) return;
 
-        Vector2 direction = player.position - firePoint.position;
+        Vector2 direction = (player.position - firePoint.position).normalized;
         float angleToPlayer = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
 
         firePoint.rotation = Quaternion.Euler(0, 0, angleToPlayer - 90f);
         Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
 
         if (AudioManager.Instance != null)
-        {
             AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperShootSound);
-        }
     }
 }-e 
 ```
@@ -8636,9 +8581,24 @@ public class EliteStormtrooper : BaseStormtrooper
 # File: Assets/Scripts/Enemy/BaseStormtrooper.cs
 ```csharp
 using UnityEngine;
+using System.Collections;
 
 public abstract class BaseStormtrooper : MonoBehaviour
 {
+    public enum EnemyState { Patrol, Alert, Attack, Lost }
+
+    [Header("Состояния и ИИ")]
+    public EnemyState currentState = EnemyState.Patrol;
+    public float detectionRadius = 8f;
+    public float fieldOfViewAngle = 120f;
+    public float alertDuration = 0.6f; // Задержка перед атакой
+    public float lostTargetMemoryTime = 3f; // Сколько секунд ищет игрока после потери
+
+    [Header("Патрулирование")]
+    public float patrolSpeed = 2f;
+    public float patrolWaitTime = 2f;
+    public float patrolRadius = 4f;
+
     [Header("Базовые Префабы")]
     public GameObject blasterBoltPrefab;
     public Transform firePoint;
@@ -8651,18 +8611,136 @@ public abstract class BaseStormtrooper : MonoBehaviour
 
     protected float nextFireTime;
     protected Transform player;
+    protected Rigidbody2D rb;
+    protected SpriteRenderer sr;
+    
+    private Vector2 lastKnownPosition;
+    private Vector2 patrolTarget;
+    private float stateTimer;
+    private bool isWaitingAtPatrol;
 
     protected virtual void Start()
     {
+        rb = GetComponent<Rigidbody2D>();
+        sr = GetComponent<SpriteRenderer>();
         SetNextFireTime();
 
-        // Все штурмовики автоматически находят джедая на старте
         GameObject p = GameObject.FindWithTag("Player");
         if (p != null) player = p.transform;
+
+        patrolTarget = (Vector2)transform.position + Random.insideUnitCircle * patrolRadius;
     }
 
     protected virtual void Update()
     {
+        if (player == null) return;
+
+        HandleDetection();
+
+        switch (currentState)
+        {
+            case EnemyState.Patrol: HandlePatrol(); break;
+            case EnemyState.Alert:  HandleAlert();  break;
+            case EnemyState.Attack: HandleAttack(); break;
+            case EnemyState.Lost:   HandleLost();   break;
+        }
+    }
+
+    private void HandleDetection()
+    {
+        float distance = Vector2.Distance(transform.position, player.position);
+        bool inView = false;
+
+        if (distance <= detectionRadius)
+        {
+            Vector2 dirToPlayer = (player.position - transform.position).normalized;
+            float angle = Vector2.Angle(transform.up, dirToPlayer);
+
+            // Если в конусе зрения или очень близко
+            if (angle < fieldOfViewAngle * 0.5f || distance < 2f)
+            {
+                RaycastHit2D hit = Physics2D.Raycast(transform.position, dirToPlayer, detectionRadius);
+                if (hit.collider != null && hit.collider.CompareTag("Player"))
+                {
+                    inView = true;
+                    lastKnownPosition = player.position;
+                }
+            }
+        }
+
+        if (inView)
+        {
+            if (currentState == EnemyState.Patrol || currentState == EnemyState.Lost)
+                TransitionToState(EnemyState.Alert);
+            else if (currentState == EnemyState.Alert && stateTimer >= alertDuration)
+                TransitionToState(EnemyState.Attack);
+        }
+        else if (currentState == EnemyState.Attack)
+        {
+            TransitionToState(EnemyState.Lost);
+        }
+    }
+
+    protected virtual void TransitionToState(EnemyState newState)
+    {
+        if (currentState == newState) return;
+        currentState = newState;
+        stateTimer = 0;
+
+        // Визуальный отклик (можно заменить на иконки "!" в будущем)
+        if (sr != null)
+        {
+            if (newState == EnemyState.Alert) sr.color = Color.yellow;
+            else if (newState == EnemyState.Attack) sr.color = Color.white;
+            else if (newState == EnemyState.Lost) sr.color = Color.gray;
+            else sr.color = Color.white;
+        }
+    }
+
+    private void HandlePatrol()
+    {
+        stateTimer += Time.deltaTime;
+        if (isWaitingAtPatrol)
+        {
+            if (stateTimer >= patrolWaitTime)
+            {
+                isWaitingAtPatrol = false;
+                patrolTarget = (Vector2)transform.position + Random.insideUnitCircle * patrolRadius;
+            }
+            return;
+        }
+
+        Vector2 dir = (patrolTarget - (Vector2)transform.position).normalized;
+        rb.MovePosition(rb.position + dir * patrolSpeed * Time.deltaTime);
+        
+        // Поворот в сторону движения
+        float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f;
+        rb.MoveRotation(angle);
+
+        if (Vector2.Distance(transform.position, patrolTarget) < 0.2f)
+        {
+            isWaitingAtPatrol = true;
+            stateTimer = 0;
+        }
+    }
+
+    private void HandleAlert()
+    {
+        stateTimer += Time.deltaTime;
+        // Штурмовик замирает и целится в игрока
+        Vector2 dir = ((Vector2)player.position - rb.position).normalized;
+        float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f;
+        rb.MoveRotation(angle);
+    }
+
+    private void HandleAttack()
+    {
+        stateTimer += Time.deltaTime;
+        // Целимся и стреляем
+        Vector2 dir = ((Vector2)player.position - rb.position).normalized;
+        float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f;
+        rb.MoveRotation(angle);
+
         if (Time.time >= nextFireTime)
         {
             ExecuteShooting();
@@ -8670,39 +8748,33 @@ public abstract class BaseStormtrooper : MonoBehaviour
         }
     }
 
-    // Каждый подкласс должен реализовать свою уникальную логику стрельбы
+    private void HandleLost()
+    {
+        stateTimer += Time.deltaTime;
+        // Идем к последней точке, где видели игрока
+        Vector2 dir = (lastKnownPosition - (Vector2)transform.position).normalized;
+        rb.MovePosition(rb.position + dir * patrolSpeed * Time.deltaTime);
+
+        if (Vector2.Distance(transform.position, lastKnownPosition) < 0.5f || stateTimer >= lostTargetMemoryTime)
+        {
+            TransitionToState(EnemyState.Patrol);
+        }
+    }
+
     protected abstract void ExecuteShooting();
 
     protected virtual void SetNextFireTime()
     {
         float baseCooldown = Random.Range(minFireRate, maxFireRate);
-        float actualCooldown = baseCooldown / fireRateMultiplier;
-        nextFireTime = Time.time + actualCooldown;
+        nextFireTime = Time.time + (baseCooldown / fireRateMultiplier);
     }
 
-    // Все типы штурмовиков теперь умирают абсолютно одинаково
     public virtual void TakeDamage()
     {
-        if (deathEffectPrefab != null)
-        {
-            Instantiate(deathEffectPrefab, transform.position, Quaternion.identity);
-        }
-
-        if (CameraFollow.Instance != null)
-        {
-            CameraFollow.Instance.Shake(0.08f, 0.12f); 
-        }
-
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperDeathSound);
-        }
-
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.CheckEnemyCount();
-        }
-
+        if (deathEffectPrefab != null) Instantiate(deathEffectPrefab, transform.position, Quaternion.identity);
+        if (CameraFollow.Instance != null) CameraFollow.Instance.Shake(0.08f, 0.12f);
+        if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperDeathSound);
+        if (GameManager.Instance != null) GameManager.Instance.CheckEnemyCount();
         Destroy(gameObject);
     }
 }-e 
@@ -8821,30 +8893,25 @@ public class SpaceWorm : MonoBehaviour
 ```csharp
 ﻿using UnityEngine;
 
-// Наследуется от BaseStormtrooper вместо MonoBehaviour
 public class Stormtrooper : BaseStormtrooper
 {
-    [Header("Специфичные Настройки (Standard)")]
+    [Header("Специфичные Настройки")]
     public float spreadAngle = 40f; 
 
     protected override void ExecuteShooting()
     {
         if (player == null || firePoint == null) return;
 
-        Vector2 direction = player.position - firePoint.position;
+        Vector2 direction = (player.position - firePoint.position).normalized;
         float angleToPlayer = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
 
-        float baseAngle = angleToPlayer - 90f;
         float randomSpread = Random.Range(-spreadAngle, spreadAngle);
-        float finalAngle = baseAngle + randomSpread;
-
-        firePoint.rotation = Quaternion.Euler(0, 0, finalAngle);
+        firePoint.rotation = Quaternion.Euler(0, 0, angleToPlayer - 90f + randomSpread);
+        
         Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
 
         if (AudioManager.Instance != null)
-        {
             AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperShootSound);
-        }
     }
 }-e 
 ```

@@ -139,6 +139,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4c74dd40a268811449c1b14c5fa3e9a2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  currentState: 0
+  detectionRadius: 12
+  fieldOfViewAngle: 240
+  alertDuration: 0.6
+  lostTargetMemoryTime: 3
+  patrolSpeed: 2
+  patrolWaitTime: 2
+  patrolRadius: 5
+  canStrafeDuringAttack: 1
+  strafeSpeed: 1.8
+  strafeChangeInterval: 1.5
   blasterBoltPrefab: {fileID: 3263495629223326411, guid: 2d64964c3120ae34d8260193d88655bf, type: 3}
   firePoint: {fileID: 7623125221459054031}
   deathEffectPrefab: {fileID: 6347455697437721081, guid: 2bdf85e90e1f0d138a78b38483413891, type: 3}
