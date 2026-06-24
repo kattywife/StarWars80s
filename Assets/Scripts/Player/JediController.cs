@@ -352,12 +352,13 @@ public class JediController : MonoBehaviour
         knockbackVelocity = direction.normalized * force;
     }
 
-    public void TakeDamage(string source = "Лазерный луч", Vector2 attackerPosition = default)
+    // ИСПРАВЛЕННЫЙ МЕТОД: поддерживает адаптивное количество урона damageAmount (по умолчанию 1)
+    public void TakeDamage(string source = "Лазерный луч", Vector2 attackerPosition = default, int damageAmount = 1)
     {
         // Не получаем урон во время рывка или неуязвимости
         if (isDashing || isRecovering) return;
 
-        health--;
+        health -= damageAmount; // Отнимаем указанное количество урона
 
         // 1. Рассчитываем точную отдачу (Knockback) в сторону от источника урона
         Vector2 pushDir = Vector2.zero;

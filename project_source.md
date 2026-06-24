@@ -59,6 +59,7 @@ Assets
 |   |   |   |-- Wall5.prefab
 |   |   |   |-- Wall6.prefab
 |   |   |   `-- Wall7.prefab
+|   |   |-- BouncingCrystal.prefab
 |   |   |-- Crystal.prefab
 |   |   |-- Finish.prefab
 |   |   |-- Wall.prefab
@@ -69,6 +70,8 @@ Assets
 |   |   `-- key3.prefab
 |   `-- Projectiles
 |       |-- BlasterBolt.prefab
+|       |-- DeflectSparkEffect.prefab
+|       |-- EnemyDeathEffect.prefab
 |       `-- ForceEffect.prefab
 |-- Resources
 |   |-- Jokes.json
@@ -77,18 +80,28 @@ Assets
 |   `-- SampleScene.unity
 |-- Scripts
 |   |-- Core
+|   |   |-- Generation
+|   |   |   |-- DijkstraPathfinder.cs
+|   |   |   |-- DungeonConfig.cs
+|   |   |   |-- DungeonData.cs
+|   |   |   |-- DungeonLayoutGenerator.cs
+|   |   |   |-- DungeonSpawner.cs
+|   |   |   `-- DungeonVisualizer.cs
 |   |   |-- AudioManager.cs
 |   |   |-- FinishPoint.cs
 |   |   |-- GameManager.cs
+|   |   |-- GridLevelGenerator.cs
 |   |   |-- LevelGenerator.cs
 |   |   |-- TutorialManager.cs
 |   |   `-- UIManager.cs
 |   |-- Enemy
+|   |   |-- BaseStormtrooper.cs
 |   |   |-- EliteStormtrooper.cs
 |   |   |-- SpaceWorm.cs
 |   |   |-- Stormtrooper.cs
 |   |   `-- SuperStormtrooper.cs
 |   |-- Environment
+|   |   |-- BouncingCrystal.cs
 |   |   `-- SecretDiskette.cs
 |   |-- Player
 |   |   |-- ForceEffect.cs
@@ -99,6 +112,8 @@ Assets
 |   |   `-- Crystal.cs
 |   `-- UI
 |       |-- ButtonHoverScale.cs
+|       |-- CameraFollow.cs
+|       |-- CameraShake.cs
 |       |-- FloatingText.cs
 |       |-- GameOverPanel.cs
 |       |-- IntroCrawl.cs
@@ -106,12 +121,14 @@ Assets
 |       |-- MainMenuPanel.cs
 |       |-- MenuController.cs
 |       |-- RetroTextEffect.cs
+|       |-- TimeFreeze.cs
 |       |-- TransitionPanel.cs
 |       |-- TypewriterEffect.cs
 |       `-- VictoryPanel.cs
 |-- Settings
 |   |-- Scenes
 |   |   `-- URP2DSceneTemplate.unity
+|   |-- DungeonConfig.asset
 |   |-- Lit2DSceneTemplate.scenetemplate
 |   |-- Renderer2D.asset
 |   `-- UniversalRP.asset
@@ -126,6 +143,8 @@ Assets
 |   |-- stormtrooper-shoot.mp3
 |   `-- win.mp3
 |-- Sprites
+|   |-- Projectiles
+|   |   `-- bullet.png
 |   |-- characters
 |   |   |-- jedi.png
 |   |   |-- r2d2.png
@@ -134,6 +153,7 @@ Assets
 |   |   |-- штурмовик2.png
 |   |   `-- штурмовик3.png
 |   |-- enviroments
+|   |   |-- Floor.png
 |   |   |-- wall.png
 |   |   |-- wallClear.png
 |   |   `-- флаг.png
@@ -151,6 +171,7 @@ Assets
 |   |   `-- пустой кристалл.png
 |   |-- неочищено
 |   |   |-- 1.png
+|   |   |-- bullet.png
 |   |   |-- golden_egg.png
 |   |   |-- iL1VW4e6Qsnna2SvgxJ3pJsh630EUTzd6RSZ8PKnEtsCJpO-cORaYQ2eaDOPfYGrnDWmnV1jQpMmwrDyfj6l9y3u-Photoroom.png
 |   |   |-- iL1VW4e6Qsnna2SvgxJ3pJsh630EUTzd6RSZ8PKnEtsCJpO-cORaYQ2eaDOPfYGrnDWmnV1jQpMmwrDyfj6l9y3u.jpg
@@ -382,14 +403,181 @@ Assets
 |   |   |-- EmojiOne.json
 |   |   `-- EmojiOne.png
 |   `-- 8514FIXR.FON
+|-- Tiles
+|   |-- FloorTile.asset
+|   `-- WallTile.asset
 |-- DefaultVolumeProfile.asset
 |-- InputSystem_Actions.inputactions
 `-- UniversalRenderPipelineGlobalSettings.asset
-```
 
+56 directories, 353 files
+```
+-e 
 ---
 
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/Benchmark01.cs
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_TextSelector_A.cs
+```csharp
+﻿using UnityEngine;
+using UnityEngine.EventSystems;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class TMP_TextSelector_A : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    {
+        private TextMeshPro m_TextMeshPro;
+
+        private Camera m_Camera;
+
+        private bool m_isHoveringObject;
+        private int m_selectedLink = -1;
+        private int m_lastCharIndex = -1;
+        private int m_lastWordIndex = -1;
+
+        void Awake()
+        {
+            m_TextMeshPro = gameObject.GetComponent<TextMeshPro>();
+            m_Camera = Camera.main;
+
+            // Force generation of the text object so we have valid data to work with. This is needed since LateUpdate() will be called before the text object has a chance to generated when entering play mode.
+            m_TextMeshPro.ForceMeshUpdate();
+        }
+
+
+        void LateUpdate()
+        {
+            m_isHoveringObject = false;
+
+            if (TMP_TextUtilities.IsIntersectingRectTransform(m_TextMeshPro.rectTransform, Input.mousePosition, Camera.main))
+            {
+                m_isHoveringObject = true;
+            }
+
+            if (m_isHoveringObject)
+            {
+                #region Example of Character Selection
+                int charIndex = TMP_TextUtilities.FindIntersectingCharacter(m_TextMeshPro, Input.mousePosition, Camera.main, true);
+                if (charIndex != -1 && charIndex != m_lastCharIndex && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
+                {
+                    //Debug.Log("[" + m_TextMeshPro.textInfo.characterInfo[charIndex].character + "] has been selected.");
+
+                    m_lastCharIndex = charIndex;
+
+                    int meshIndex = m_TextMeshPro.textInfo.characterInfo[charIndex].materialReferenceIndex;
+
+                    int vertexIndex = m_TextMeshPro.textInfo.characterInfo[charIndex].vertexIndex;
+
+                    Color32 c = new Color32((byte)Random.Range(0, 255), (byte)Random.Range(0, 255), (byte)Random.Range(0, 255), 255);
+
+                    Color32[] vertexColors = m_TextMeshPro.textInfo.meshInfo[meshIndex].colors32;
+
+                    vertexColors[vertexIndex + 0] = c;
+                    vertexColors[vertexIndex + 1] = c;
+                    vertexColors[vertexIndex + 2] = c;
+                    vertexColors[vertexIndex + 3] = c;
+
+                    //m_TextMeshPro.mesh.colors32 = vertexColors;
+                    m_TextMeshPro.textInfo.meshInfo[meshIndex].mesh.colors32 = vertexColors;
+                }
+                #endregion
+
+                #region Example of Link Handling
+                // Check if mouse intersects with any links.
+                int linkIndex = TMP_TextUtilities.FindIntersectingLink(m_TextMeshPro, Input.mousePosition, m_Camera);
+
+                // Clear previous link selection if one existed.
+                if ((linkIndex == -1 && m_selectedLink != -1) || linkIndex != m_selectedLink)
+                {
+                    //m_TextPopup_RectTransform.gameObject.SetActive(false);
+                    m_selectedLink = -1;
+                }
+
+                // Handle new Link selection.
+                if (linkIndex != -1 && linkIndex != m_selectedLink)
+                {
+                    m_selectedLink = linkIndex;
+
+                    TMP_LinkInfo linkInfo = m_TextMeshPro.textInfo.linkInfo[linkIndex];
+
+                    // The following provides an example of how to access the link properties.
+                    //Debug.Log("Link ID: \"" + linkInfo.GetLinkID() + "\"   Link Text: \"" + linkInfo.GetLinkText() + "\""); // Example of how to retrieve the Link ID and Link Text.
+
+                    Vector3 worldPointInRectangle;
+
+                    RectTransformUtility.ScreenPointToWorldPointInRectangle(m_TextMeshPro.rectTransform, Input.mousePosition, m_Camera, out worldPointInRectangle);
+
+                    switch (linkInfo.GetLinkID())
+                    {
+                        case "id_01": // 100041637: // id_01
+                                      //m_TextPopup_RectTransform.position = worldPointInRectangle;
+                                      //m_TextPopup_RectTransform.gameObject.SetActive(true);
+                                      //m_TextPopup_TMPComponent.text = k_LinkText + " ID 01";
+                            break;
+                        case "id_02": // 100041638: // id_02
+                                      //m_TextPopup_RectTransform.position = worldPointInRectangle;
+                                      //m_TextPopup_RectTransform.gameObject.SetActive(true);
+                                      //m_TextPopup_TMPComponent.text = k_LinkText + " ID 02";
+                            break;
+                    }
+                }
+                #endregion
+
+
+                #region Example of Word Selection
+                // Check if Mouse intersects any words and if so assign a random color to that word.
+                int wordIndex = TMP_TextUtilities.FindIntersectingWord(m_TextMeshPro, Input.mousePosition, Camera.main);
+                if (wordIndex != -1 && wordIndex != m_lastWordIndex)
+                {
+                    m_lastWordIndex = wordIndex;
+
+                    TMP_WordInfo wInfo = m_TextMeshPro.textInfo.wordInfo[wordIndex];
+
+                    Vector3 wordPOS = m_TextMeshPro.transform.TransformPoint(m_TextMeshPro.textInfo.characterInfo[wInfo.firstCharacterIndex].bottomLeft);
+                    wordPOS = Camera.main.WorldToScreenPoint(wordPOS);
+
+                    //Debug.Log("Mouse Position: " + Input.mousePosition.ToString("f3") + "  Word Position: " + wordPOS.ToString("f3"));
+
+                    Color32[] vertexColors = m_TextMeshPro.textInfo.meshInfo[0].colors32;
+
+                    Color32 c = new Color32((byte)Random.Range(0, 255), (byte)Random.Range(0, 255), (byte)Random.Range(0, 255), 255);
+                    for (int i = 0; i < wInfo.characterCount; i++)
+                    {
+                        int vertexIndex = m_TextMeshPro.textInfo.characterInfo[wInfo.firstCharacterIndex + i].vertexIndex;
+
+                        vertexColors[vertexIndex + 0] = c;
+                        vertexColors[vertexIndex + 1] = c;
+                        vertexColors[vertexIndex + 2] = c;
+                        vertexColors[vertexIndex + 3] = c;
+                    }
+
+                    m_TextMeshPro.mesh.colors32 = vertexColors;
+                }
+                #endregion
+            }
+        }
+
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            Debug.Log("OnPointerEnter()");
+            m_isHoveringObject = true;
+        }
+
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            Debug.Log("OnPointerExit()");
+            m_isHoveringObject = false;
+        }
+
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TextMeshSpawner.cs
 ```csharp
 using UnityEngine;
 using System.Collections;
@@ -397,129 +585,169 @@ using System.Collections;
 
 namespace TMPro.Examples
 {
-
-    public class Benchmark01 : MonoBehaviour
+    
+    public class TextMeshSpawner : MonoBehaviour
     {
 
-        public int BenchmarkType = 0;
+        public int SpawnType = 0;
+        public int NumberOfNPC = 12;
 
-        public TMP_FontAsset TMProFont;
-        public Font TextMeshFont;
+        public Font TheFont;
 
-        private TextMeshPro m_textMeshPro;
-        private TextContainer m_textContainer;
-        private TextMesh m_textMesh;
+        private TextMeshProFloatingText floatingText_Script;
 
-        private const string label01 = "The <#0050FF>count is: </color>{0}";
-        private const string label02 = "The <color=#0050FF>count is: </color>";
-
-        //private string m_string;
-        //private int m_frame;
-
-        private Material m_material01;
-        private Material m_material02;
-
-
-
-        IEnumerator Start()
+        void Awake()
         {
 
+        }
 
+        void Start()
+        {
 
-            if (BenchmarkType == 0) // TextMesh Pro Component
+            for (int i = 0; i < NumberOfNPC; i++)
             {
-                m_textMeshPro = gameObject.AddComponent<TextMeshPro>();
-                m_textMeshPro.autoSizeTextContainer = true;
-
-                //m_textMeshPro.anchorDampening = true;
-
-                if (TMProFont != null)
-                    m_textMeshPro.font = TMProFont;
-
-                //m_textMeshPro.font = Resources.Load("Fonts & Materials/Anton SDF", typeof(TextMeshProFont)) as TextMeshProFont; // Make sure the Anton SDF exists before calling this...
-                //m_textMeshPro.fontSharedMaterial = Resources.Load("Fonts & Materials/Anton SDF", typeof(Material)) as Material; // Same as above make sure this material exists.
-
-                m_textMeshPro.fontSize = 48;
-                m_textMeshPro.alignment = TextAlignmentOptions.Center;
-                //m_textMeshPro.anchor = AnchorPositions.Center;
-                m_textMeshPro.extraPadding = true;
-                //m_textMeshPro.outlineWidth = 0.25f;
-                //m_textMeshPro.fontSharedMaterial.SetFloat("_OutlineWidth", 0.2f);
-                //m_textMeshPro.fontSharedMaterial.EnableKeyword("UNDERLAY_ON");
-                //m_textMeshPro.lineJustification = LineJustificationTypes.Center;
-                m_textMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
-                //m_textMeshPro.lineLength = 60;
-                //m_textMeshPro.characterSpacing = 0.2f;
-                //m_textMeshPro.fontColor = new Color32(255, 255, 255, 255);
-
-                m_material01 = m_textMeshPro.font.material;
-                m_material02 = Resources.Load<Material>("Fonts & Materials/LiberationSans SDF - Drop Shadow"); // Make sure the LiberationSans SDF exists before calling this...
-
-
-            }
-            else if (BenchmarkType == 1) // TextMesh
-            {
-                m_textMesh = gameObject.AddComponent<TextMesh>();
-
-                if (TextMeshFont != null)
+                if (SpawnType == 0)
                 {
-                    m_textMesh.font = TextMeshFont;
-                    m_textMesh.GetComponent<Renderer>().sharedMaterial = m_textMesh.font.material;
+                    // TextMesh Pro Implementation     
+                    //go.transform.localScale = new Vector3(2, 2, 2);
+                    GameObject go = new GameObject(); //"NPC " + i);
+                    go.transform.position = new Vector3(Random.Range(-95f, 95f), 0.5f, Random.Range(-95f, 95f));
+
+                    //go.transform.position = new Vector3(0, 1.01f, 0);
+                    //go.renderer.castShadows = false;
+                    //go.renderer.receiveShadows = false;
+                    //go.transform.rotation = Quaternion.Euler(0, Random.Range(0, 360), 0);
+
+                    TextMeshPro textMeshPro = go.AddComponent<TextMeshPro>();
+                    //textMeshPro.FontAsset = Resources.Load("Fonts & Materials/LiberationSans SDF", typeof(TextMeshProFont)) as TextMeshProFont;
+                    //textMeshPro.anchor = AnchorPositions.Bottom;
+                    textMeshPro.fontSize = 96;
+
+                    textMeshPro.text = "!";
+                    textMeshPro.color = new Color32(255, 255, 0, 255);
+                    //textMeshPro.Text = "!";
+
+
+                    // Spawn Floating Text
+                    floatingText_Script = go.AddComponent<TextMeshProFloatingText>();
+                    floatingText_Script.SpawnType = 0;
                 }
                 else
                 {
-                    m_textMesh.font = Resources.Load("Fonts/ARIAL", typeof(Font)) as Font;
-                    m_textMesh.GetComponent<Renderer>().sharedMaterial = m_textMesh.font.material;
+                    // TextMesh Implementation
+                    GameObject go = new GameObject(); //"NPC " + i);
+                    go.transform.position = new Vector3(Random.Range(-95f, 95f), 0.5f, Random.Range(-95f, 95f));
+
+                    //go.transform.position = new Vector3(0, 1.01f, 0);
+
+                    TextMesh textMesh = go.AddComponent<TextMesh>();
+                    textMesh.GetComponent<Renderer>().sharedMaterial = TheFont.material;
+                    textMesh.font = TheFont;
+                    textMesh.anchor = TextAnchor.LowerCenter;
+                    textMesh.fontSize = 96;
+
+                    textMesh.color = new Color32(255, 255, 0, 255);
+                    textMesh.text = "!";
+
+                    // Spawn Floating Text
+                    floatingText_Script = go.AddComponent<TextMeshProFloatingText>();
+                    floatingText_Script.SpawnType = 1;
                 }
-
-                m_textMesh.fontSize = 48;
-                m_textMesh.anchor = TextAnchor.MiddleCenter;
-
-                //m_textMesh.color = new Color32(255, 255, 0, 255);
             }
-
-
-
-            for (int i = 0; i <= 1000000; i++)
-            {
-                if (BenchmarkType == 0)
-                {
-                    m_textMeshPro.SetText(label01, i % 1000);
-                    if (i % 1000 == 999)
-                        m_textMeshPro.fontSharedMaterial = m_textMeshPro.fontSharedMaterial == m_material01 ? m_textMeshPro.fontSharedMaterial = m_material02 : m_textMeshPro.fontSharedMaterial = m_material01;
-
-
-
-                }
-                else if (BenchmarkType == 1)
-                    m_textMesh.text = label02 + (i % 1000).ToString();
-
-                yield return null;
-            }
-
-
-            yield return null;
         }
 
-
-        /*
-        void Update()
-        {
-            if (BenchmarkType == 0)
-            {
-                m_textMeshPro.text = (m_frame % 1000).ToString();
-            }
-            else if (BenchmarkType == 1)
-            {
-                m_textMesh.text = (m_frame % 1000).ToString();
-            }
-
-            m_frame += 1;
-        }
-        */
     }
 }
+-e 
+```
 
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/VertexColorCycler.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class VertexColorCycler : MonoBehaviour
+    {
+
+        private TMP_Text m_TextComponent;
+
+        void Awake()
+        {
+            m_TextComponent = GetComponent<TMP_Text>();
+        }
+
+
+        void Start()
+        {
+            StartCoroutine(AnimateVertexColors());
+        }
+
+
+        /// <summary>
+        /// Method to animate vertex colors of a TMP Text object.
+        /// </summary>
+        /// <returns></returns>
+        IEnumerator AnimateVertexColors()
+        {
+            // Force the text object to update right away so we can have geometry to modify right from the start.
+            m_TextComponent.ForceMeshUpdate();
+
+            TMP_TextInfo textInfo = m_TextComponent.textInfo;
+            int currentCharacter = 0;
+
+            Color32[] newVertexColors;
+            Color32 c0 = m_TextComponent.color;
+
+            while (true)
+            {
+                int characterCount = textInfo.characterCount;
+
+                // If No Characters then just yield and wait for some text to be added
+                if (characterCount == 0)
+                {
+                    yield return new WaitForSeconds(0.25f);
+                    continue;
+                }
+
+                // Get the index of the material used by the current character.
+                int materialIndex = textInfo.characterInfo[currentCharacter].materialReferenceIndex;
+
+                // Get the vertex colors of the mesh used by this text element (character or sprite).
+                newVertexColors = textInfo.meshInfo[materialIndex].colors32;
+
+                // Get the index of the first vertex used by this text element.
+                int vertexIndex = textInfo.characterInfo[currentCharacter].vertexIndex;
+
+                // Only change the vertex color if the text element is visible.
+                if (textInfo.characterInfo[currentCharacter].isVisible)
+                {
+                    c0 = new Color32((byte)Random.Range(0, 255), (byte)Random.Range(0, 255), (byte)Random.Range(0, 255), 255);
+
+                    newVertexColors[vertexIndex + 0] = c0;
+                    newVertexColors[vertexIndex + 1] = c0;
+                    newVertexColors[vertexIndex + 2] = c0;
+                    newVertexColors[vertexIndex + 3] = c0;
+
+                    // New function which pushes (all) updated vertex data to the appropriate meshes when using either the Mesh Renderer or CanvasRenderer.
+                    m_TextComponent.UpdateVertexData(TMP_VertexDataUpdateFlags.Colors32);
+
+                    // This last process could be done to only update the vertex data that has changed as opposed to all of the vertex data but it would require extra steps and knowing what type of renderer is used.
+                    // These extra steps would be a performance optimization but it is unlikely that such optimization will be necessary.
+                }
+
+                currentCharacter = (currentCharacter + 1) % characterCount;
+
+                yield return new WaitForSeconds(0.05f);
+            }
+        }
+
+    }
+}
+-e 
 ```
 
 # File: Assets/TextMesh Pro/Examples & Extras/Scripts/Benchmark01_UGUI.cs
@@ -659,1761 +887,7 @@ namespace TMPro.Examples
     }
 
 }
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/Benchmark02.cs
-```csharp
-using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class Benchmark02 : MonoBehaviour
-    {
-
-        public int SpawnType = 0;
-        public int NumberOfNPC = 12;
-
-        public bool IsTextObjectScaleStatic;
-        private TextMeshProFloatingText floatingText_Script;
-
-
-        void Start()
-        {
-
-            for (int i = 0; i < NumberOfNPC; i++)
-            {
-
-
-                if (SpawnType == 0)
-                {
-                    // TextMesh Pro Implementation
-                    GameObject go = new GameObject();
-                    go.transform.position = new Vector3(Random.Range(-95f, 95f), 0.25f, Random.Range(-95f, 95f));
-
-                    TextMeshPro textMeshPro = go.AddComponent<TextMeshPro>();
-
-                    textMeshPro.autoSizeTextContainer = true;
-                    textMeshPro.rectTransform.pivot = new Vector2(0.5f, 0);
-
-                    textMeshPro.alignment = TextAlignmentOptions.Bottom;
-                    textMeshPro.fontSize = 96;
-                    textMeshPro.fontFeatures.Clear();
-
-                    textMeshPro.color = new Color32(255, 255, 0, 255);
-                    textMeshPro.text = "!";
-                    textMeshPro.isTextObjectScaleStatic = IsTextObjectScaleStatic;
-
-                    // Spawn Floating Text
-                    floatingText_Script = go.AddComponent<TextMeshProFloatingText>();
-                    floatingText_Script.SpawnType = 0;
-                    floatingText_Script.IsTextObjectScaleStatic = IsTextObjectScaleStatic;
-                }
-                else if (SpawnType == 1)
-                {
-                    // TextMesh Implementation
-                    GameObject go = new GameObject();
-                    go.transform.position = new Vector3(Random.Range(-95f, 95f), 0.25f, Random.Range(-95f, 95f));
-
-                    TextMesh textMesh = go.AddComponent<TextMesh>();
-                    textMesh.font = Resources.Load<Font>("Fonts/ARIAL");
-                    textMesh.GetComponent<Renderer>().sharedMaterial = textMesh.font.material;
-
-                    textMesh.anchor = TextAnchor.LowerCenter;
-                    textMesh.fontSize = 96;
-
-                    textMesh.color = new Color32(255, 255, 0, 255);
-                    textMesh.text = "!";
-
-                    // Spawn Floating Text
-                    floatingText_Script = go.AddComponent<TextMeshProFloatingText>();
-                    floatingText_Script.SpawnType = 1;
-                }
-                else if (SpawnType == 2)
-                {
-                    // Canvas WorldSpace Camera
-                    GameObject go = new GameObject();
-                    Canvas canvas = go.AddComponent<Canvas>();
-                    canvas.worldCamera = Camera.main;
-
-                    go.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
-                    go.transform.position = new Vector3(Random.Range(-95f, 95f), 5f, Random.Range(-95f, 95f));
-
-                    TextMeshProUGUI textObject = new GameObject().AddComponent<TextMeshProUGUI>();
-                    textObject.rectTransform.SetParent(go.transform, false);
-
-                    textObject.color = new Color32(255, 255, 0, 255);
-                    textObject.alignment = TextAlignmentOptions.Bottom;
-                    textObject.fontSize = 96;
-                    textObject.text = "!";
-
-                    // Spawn Floating Text
-                    floatingText_Script = go.AddComponent<TextMeshProFloatingText>();
-                    floatingText_Script.SpawnType = 0;
-                }
-
-
-
-            }
-        }
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/Benchmark03.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-using UnityEngine.TextCore.LowLevel;
-
-
-namespace TMPro.Examples
-{
-
-    public class Benchmark03 : MonoBehaviour
-    {
-        public enum BenchmarkType { TMP_SDF_MOBILE = 0, TMP_SDF__MOBILE_SSD = 1, TMP_SDF = 2, TMP_BITMAP_MOBILE = 3, TEXTMESH_BITMAP = 4 }
-
-        public int NumberOfSamples = 100;
-        public BenchmarkType Benchmark;
-
-        public Font SourceFont;
-
-
-        void Awake()
-        {
-
-        }
-
-
-        void Start()
-        {
-            TMP_FontAsset fontAsset = null;
-
-            // Create Dynamic Font Asset for the given font file.
-            switch (Benchmark)
-            {
-                case BenchmarkType.TMP_SDF_MOBILE:
-                    fontAsset = TMP_FontAsset.CreateFontAsset(SourceFont, 90, 9, GlyphRenderMode.SDFAA, 256, 256, AtlasPopulationMode.Dynamic);
-                    break;
-                case BenchmarkType.TMP_SDF__MOBILE_SSD:
-                    fontAsset = TMP_FontAsset.CreateFontAsset(SourceFont, 90, 9, GlyphRenderMode.SDFAA, 256, 256, AtlasPopulationMode.Dynamic);
-                    fontAsset.material.shader = Shader.Find("TextMeshPro/Mobile/Distance Field SSD");
-                    break;
-                case BenchmarkType.TMP_SDF:
-                    fontAsset = TMP_FontAsset.CreateFontAsset(SourceFont, 90, 9, GlyphRenderMode.SDFAA, 256, 256, AtlasPopulationMode.Dynamic);
-                    fontAsset.material.shader = Shader.Find("TextMeshPro/Distance Field");
-                    break;
-                case BenchmarkType.TMP_BITMAP_MOBILE:
-                    fontAsset = TMP_FontAsset.CreateFontAsset(SourceFont, 90, 9, GlyphRenderMode.SMOOTH, 256, 256, AtlasPopulationMode.Dynamic);
-                    break;
-            }
-
-            for (int i = 0; i < NumberOfSamples; i++)
-            {
-                switch (Benchmark)
-                {
-                    case BenchmarkType.TMP_SDF_MOBILE:
-                    case BenchmarkType.TMP_SDF__MOBILE_SSD:
-                    case BenchmarkType.TMP_SDF:
-                    case BenchmarkType.TMP_BITMAP_MOBILE:
-                        {
-                            GameObject go = new GameObject();
-                            go.transform.position = new Vector3(0, 1.2f, 0);
-
-                            TextMeshPro textComponent = go.AddComponent<TextMeshPro>();
-                            textComponent.font = fontAsset;
-                            textComponent.fontSize = 128;
-                            textComponent.text = "@";
-                            textComponent.alignment = TextAlignmentOptions.Center;
-                            textComponent.color = new Color32(255, 255, 0, 255);
-
-                            if (Benchmark == BenchmarkType.TMP_BITMAP_MOBILE)
-                                textComponent.fontSize = 132;
-
-                        }
-                        break;
-                    case BenchmarkType.TEXTMESH_BITMAP:
-                        {
-                            GameObject go = new GameObject();
-                            go.transform.position = new Vector3(0, 1.2f, 0);
-
-                            TextMesh textMesh = go.AddComponent<TextMesh>();
-                            textMesh.GetComponent<Renderer>().sharedMaterial = SourceFont.material;
-                            textMesh.font = SourceFont;
-                            textMesh.anchor = TextAnchor.MiddleCenter;
-                            textMesh.fontSize = 130;
-
-                            textMesh.color = new Color32(255, 255, 0, 255);
-                            textMesh.text = "@";
-                        }
-                        break;
-                }
-            }
-        }
-
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/Benchmark04.cs
-```csharp
-using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class Benchmark04 : MonoBehaviour
-    {
-
-        public int SpawnType = 0;
-
-        public int MinPointSize = 12;
-        public int MaxPointSize = 64;
-        public int Steps = 4;
-
-        private Transform m_Transform;
-        //private TextMeshProFloatingText floatingText_Script;
-        //public Material material;
-
-
-        void Start()
-        {
-            m_Transform = transform;
-
-            float lineHeight = 0;
-            float orthoSize = Camera.main.orthographicSize = Screen.height / 2;
-            float ratio = (float)Screen.width / Screen.height;
-
-            for (int i = MinPointSize; i <= MaxPointSize; i += Steps)
-            {
-                if (SpawnType == 0)
-                {
-                    // TextMesh Pro Implementation
-                    GameObject go = new GameObject("Text - " + i + " Pts");
-
-                    if (lineHeight > orthoSize * 2) return;
-
-                    go.transform.position = m_Transform.position + new Vector3(ratio * -orthoSize * 0.975f, orthoSize * 0.975f - lineHeight, 0);
-
-                    TextMeshPro textMeshPro = go.AddComponent<TextMeshPro>();
-
-                    //textMeshPro.fontSharedMaterial = material;
-                    //textMeshPro.font = Resources.Load("Fonts & Materials/LiberationSans SDF", typeof(TextMeshProFont)) as TextMeshProFont;
-                    //textMeshPro.anchor = AnchorPositions.Left;
-                    textMeshPro.rectTransform.pivot = new Vector2(0, 0.5f);
-
-                    textMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
-                    textMeshPro.extraPadding = true;
-                    textMeshPro.isOrthographic = true;
-                    textMeshPro.fontSize = i;
-
-                    textMeshPro.text = i + " pts - Lorem ipsum dolor sit...";
-                    textMeshPro.color = new Color32(255, 255, 255, 255);
-
-                    lineHeight += i;
-                }
-                else
-                {
-                    // TextMesh Implementation
-                    // Causes crashes since atlas needed exceeds 4096 X 4096
-                    /*
-                    GameObject go = new GameObject("Arial " + i);
-
-                    //if (lineHeight > orthoSize * 2 * 0.9f) return;
-
-                    go.transform.position = m_Transform.position + new Vector3(ratio * -orthoSize * 0.975f, orthoSize * 0.975f - lineHeight, 1);
-
-                    TextMesh textMesh = go.AddComponent<TextMesh>();
-                    textMesh.font = Resources.Load("Fonts/ARIAL", typeof(Font)) as Font;
-                    textMesh.renderer.sharedMaterial = textMesh.font.material;
-                    textMesh.anchor = TextAnchor.MiddleLeft;
-                    textMesh.fontSize = i * 10;
-
-                    textMesh.color = new Color32(255, 255, 255, 255);
-                    textMesh.text = i + " pts - Lorem ipsum dolor sit...";
-
-                    lineHeight += i;
-                    */
-                }
-            }
-        }
-
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/CameraController.cs
-```csharp
-using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-    
-    public class CameraController : MonoBehaviour
-    {
-        public enum CameraModes { Follow, Isometric, Free }
-
-        private Transform cameraTransform;
-        private Transform dummyTarget;
-
-        public Transform CameraTarget;
-
-        public float FollowDistance = 30.0f;
-        public float MaxFollowDistance = 100.0f;
-        public float MinFollowDistance = 2.0f;
-
-        public float ElevationAngle = 30.0f;
-        public float MaxElevationAngle = 85.0f;
-        public float MinElevationAngle = 0f;
-
-        public float OrbitalAngle = 0f;
-
-        public CameraModes CameraMode = CameraModes.Follow;
-
-        public bool MovementSmoothing = true;
-        public bool RotationSmoothing = false;
-        private bool previousSmoothing;
-
-        public float MovementSmoothingValue = 25f;
-        public float RotationSmoothingValue = 5.0f;
-
-        public float MoveSensitivity = 2.0f;
-
-        private Vector3 currentVelocity = Vector3.zero;
-        private Vector3 desiredPosition;
-        private float mouseX;
-        private float mouseY;
-        private Vector3 moveVector;
-        private float mouseWheel;
-
-        // Controls for Touches on Mobile devices
-        //private float prev_ZoomDelta;
-
-
-        private const string event_SmoothingValue = "Slider - Smoothing Value";
-        private const string event_FollowDistance = "Slider - Camera Zoom";
-
-
-        void Awake()
-        {
-            if (QualitySettings.vSyncCount > 0)
-                Application.targetFrameRate = 60;
-            else
-                Application.targetFrameRate = -1;
-
-            if (Application.platform == RuntimePlatform.IPhonePlayer || Application.platform == RuntimePlatform.Android)
-                Input.simulateMouseWithTouches = false;
-
-            cameraTransform = transform;
-            previousSmoothing = MovementSmoothing;
-        }
-
-
-        // Use this for initialization
-        void Start()
-        {
-            if (CameraTarget == null)
-            {
-                // If we don't have a target (assigned by the player, create a dummy in the center of the scene).
-                dummyTarget = new GameObject("Camera Target").transform;
-                CameraTarget = dummyTarget;
-            }
-        }
-
-        // Update is called once per frame
-        void LateUpdate()
-        {
-            GetPlayerInput();
-
-
-            // Check if we still have a valid target
-            if (CameraTarget != null)
-            {
-                if (CameraMode == CameraModes.Isometric)
-                {
-                    desiredPosition = CameraTarget.position + Quaternion.Euler(ElevationAngle, OrbitalAngle, 0f) * new Vector3(0, 0, -FollowDistance);
-                }
-                else if (CameraMode == CameraModes.Follow)
-                {
-                    desiredPosition = CameraTarget.position + CameraTarget.TransformDirection(Quaternion.Euler(ElevationAngle, OrbitalAngle, 0f) * (new Vector3(0, 0, -FollowDistance)));
-                }
-                else
-                {
-                    // Free Camera implementation
-                }
-
-                if (MovementSmoothing == true)
-                {
-                    // Using Smoothing
-                    cameraTransform.position = Vector3.SmoothDamp(cameraTransform.position, desiredPosition, ref currentVelocity, MovementSmoothingValue * Time.fixedDeltaTime);
-                    //cameraTransform.position = Vector3.Lerp(cameraTransform.position, desiredPosition, Time.deltaTime * 5.0f);
-                }
-                else
-                {
-                    // Not using Smoothing
-                    cameraTransform.position = desiredPosition;
-                }
-
-                if (RotationSmoothing == true)
-                    cameraTransform.rotation = Quaternion.Lerp(cameraTransform.rotation, Quaternion.LookRotation(CameraTarget.position - cameraTransform.position), RotationSmoothingValue * Time.deltaTime);
-                else
-                {
-                    cameraTransform.LookAt(CameraTarget);
-                }
-
-            }
-
-        }
-
-
-
-        void GetPlayerInput()
-        {
-            moveVector = Vector3.zero;
-
-            // Check Mouse Wheel Input prior to Shift Key so we can apply multiplier on Shift for Scrolling
-            mouseWheel = Input.GetAxis("Mouse ScrollWheel");
-
-            float touchCount = Input.touchCount;
-
-            if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) || touchCount > 0)
-            {
-                mouseWheel *= 10;
-
-                if (Input.GetKeyDown(KeyCode.I))
-                    CameraMode = CameraModes.Isometric;
-
-                if (Input.GetKeyDown(KeyCode.F))
-                    CameraMode = CameraModes.Follow;
-
-                if (Input.GetKeyDown(KeyCode.S))
-                    MovementSmoothing = !MovementSmoothing;
-
-
-                // Check for right mouse button to change camera follow and elevation angle
-                if (Input.GetMouseButton(1))
-                {
-                    mouseY = Input.GetAxis("Mouse Y");
-                    mouseX = Input.GetAxis("Mouse X");
-
-                    if (mouseY > 0.01f || mouseY < -0.01f)
-                    {
-                        ElevationAngle -= mouseY * MoveSensitivity;
-                        // Limit Elevation angle between min & max values.
-                        ElevationAngle = Mathf.Clamp(ElevationAngle, MinElevationAngle, MaxElevationAngle);
-                    }
-
-                    if (mouseX > 0.01f || mouseX < -0.01f)
-                    {
-                        OrbitalAngle += mouseX * MoveSensitivity;
-                        if (OrbitalAngle > 360)
-                            OrbitalAngle -= 360;
-                        if (OrbitalAngle < 0)
-                            OrbitalAngle += 360;
-                    }
-                }
-
-                // Get Input from Mobile Device
-                if (touchCount == 1 && Input.GetTouch(0).phase == TouchPhase.Moved)
-                {
-                    Vector2 deltaPosition = Input.GetTouch(0).deltaPosition;
-
-                    // Handle elevation changes
-                    if (deltaPosition.y > 0.01f || deltaPosition.y < -0.01f)
-                    {
-                        ElevationAngle -= deltaPosition.y * 0.1f;
-                        // Limit Elevation angle between min & max values.
-                        ElevationAngle = Mathf.Clamp(ElevationAngle, MinElevationAngle, MaxElevationAngle);
-                    }
-
-
-                    // Handle left & right 
-                    if (deltaPosition.x > 0.01f || deltaPosition.x < -0.01f)
-                    {
-                        OrbitalAngle += deltaPosition.x * 0.1f;
-                        if (OrbitalAngle > 360)
-                            OrbitalAngle -= 360;
-                        if (OrbitalAngle < 0)
-                            OrbitalAngle += 360;
-                    }
-
-                }
-
-                // Check for left mouse button to select a new CameraTarget or to reset Follow position
-                if (Input.GetMouseButton(0))
-                {
-                    Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-                    RaycastHit hit;
-
-                    if (Physics.Raycast(ray, out hit, 300, 1 << 10 | 1 << 11 | 1 << 12 | 1 << 14))
-                    {
-                        if (hit.transform == CameraTarget)
-                        {
-                            // Reset Follow Position
-                            OrbitalAngle = 0;
-                        }
-                        else
-                        {
-                            CameraTarget = hit.transform;
-                            OrbitalAngle = 0;
-                            MovementSmoothing = previousSmoothing;
-                        }
-
-                    }
-                }
-
-
-                if (Input.GetMouseButton(2))
-                {
-                    if (dummyTarget == null)
-                    {
-                        // We need a Dummy Target to anchor the Camera
-                        dummyTarget = new GameObject("Camera Target").transform;
-                        dummyTarget.position = CameraTarget.position;
-                        dummyTarget.rotation = CameraTarget.rotation;
-                        CameraTarget = dummyTarget;
-                        previousSmoothing = MovementSmoothing;
-                        MovementSmoothing = false;
-                    }
-                    else if (dummyTarget != CameraTarget)
-                    {
-                        // Move DummyTarget to CameraTarget
-                        dummyTarget.position = CameraTarget.position;
-                        dummyTarget.rotation = CameraTarget.rotation;
-                        CameraTarget = dummyTarget;
-                        previousSmoothing = MovementSmoothing;
-                        MovementSmoothing = false;
-                    }
-
-
-                    mouseY = Input.GetAxis("Mouse Y");
-                    mouseX = Input.GetAxis("Mouse X");
-
-                    moveVector = cameraTransform.TransformDirection(mouseX, mouseY, 0);
-
-                    dummyTarget.Translate(-moveVector, Space.World);
-
-                }
-
-            }
-
-            // Check Pinching to Zoom in - out on Mobile device
-            if (touchCount == 2)
-            {
-                Touch touch0 = Input.GetTouch(0);
-                Touch touch1 = Input.GetTouch(1);
-
-                Vector2 touch0PrevPos = touch0.position - touch0.deltaPosition;
-                Vector2 touch1PrevPos = touch1.position - touch1.deltaPosition;
-
-                float prevTouchDelta = (touch0PrevPos - touch1PrevPos).magnitude;
-                float touchDelta = (touch0.position - touch1.position).magnitude;
-
-                float zoomDelta = prevTouchDelta - touchDelta;
-
-                if (zoomDelta > 0.01f || zoomDelta < -0.01f)
-                {
-                    FollowDistance += zoomDelta * 0.25f;
-                    // Limit FollowDistance between min & max values.
-                    FollowDistance = Mathf.Clamp(FollowDistance, MinFollowDistance, MaxFollowDistance);
-                }
-
-
-            }
-
-            // Check MouseWheel to Zoom in-out
-            if (mouseWheel < -0.01f || mouseWheel > 0.01f)
-            {
-
-                FollowDistance -= mouseWheel * 5.0f;
-                // Limit FollowDistance between min & max values.
-                FollowDistance = Mathf.Clamp(FollowDistance, MinFollowDistance, MaxFollowDistance);
-            }
-
-
-        }
-    }
-}
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/ChatController.cs
-```csharp
-﻿using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
-
-public class ChatController : MonoBehaviour {
-
-
-    public TMP_InputField ChatInputField;
-
-    public TMP_Text ChatDisplayOutput;
-
-    public Scrollbar ChatScrollbar;
-
-    void OnEnable()
-    {
-        ChatInputField.onSubmit.AddListener(AddToChatOutput);
-    }
-
-    void OnDisable()
-    {
-        ChatInputField.onSubmit.RemoveListener(AddToChatOutput);
-    }
-
-
-    void AddToChatOutput(string newText)
-    {
-        // Clear Input Field
-        ChatInputField.text = string.Empty;
-
-        var timeNow = System.DateTime.Now;
-
-        string formattedInput = "[<#FFFF80>" + timeNow.Hour.ToString("d2") + ":" + timeNow.Minute.ToString("d2") + ":" + timeNow.Second.ToString("d2") + "</color>] " + newText;
-
-        if (ChatDisplayOutput != null)
-        {
-            // No special formatting for first entry
-            // Add line feed before each subsequent entries
-            if (ChatDisplayOutput.text == string.Empty)
-                ChatDisplayOutput.text = formattedInput;
-            else
-                ChatDisplayOutput.text += "\n" + formattedInput;
-        }
-
-        // Keep Chat input field active
-        ChatInputField.ActivateInputField();
-
-        // Set the scrollbar to the bottom when next text is submitted.
-        ChatScrollbar.value = 0;
-    }
-
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/DropdownSample.cs
-```csharp
-﻿using TMPro;
-using UnityEngine;
-
-public class DropdownSample: MonoBehaviour
-{
-	[SerializeField]
-	private TextMeshProUGUI text = null;
-
-	[SerializeField]
-	private TMP_Dropdown dropdownWithoutPlaceholder = null;
-
-	[SerializeField]
-	private TMP_Dropdown dropdownWithPlaceholder = null;
-
-	public void OnButtonClick()
-	{
-		text.text = dropdownWithPlaceholder.value > -1 ? "Selected values:\n" + dropdownWithoutPlaceholder.value + " - " + dropdownWithPlaceholder.value : "Error: Please make a selection";
-	}
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/EnvMapAnimator.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-using TMPro;
-
-public class EnvMapAnimator : MonoBehaviour {
-
-    //private Vector3 TranslationSpeeds;
-    public Vector3 RotationSpeeds;
-    private TMP_Text m_textMeshPro;
-    private Material m_material;
-    
-
-    void Awake()
-    {
-        //Debug.Log("Awake() on Script called.");
-        m_textMeshPro = GetComponent<TMP_Text>();
-        m_material = m_textMeshPro.fontSharedMaterial;
-    }
-
-    // Use this for initialization
-	IEnumerator Start ()
-    {
-        Matrix4x4 matrix = new Matrix4x4(); 
-        
-        while (true)
-        {
-            //matrix.SetTRS(new Vector3 (Time.time * TranslationSpeeds.x, Time.time * TranslationSpeeds.y, Time.time * TranslationSpeeds.z), Quaternion.Euler(Time.time * RotationSpeeds.x, Time.time * RotationSpeeds.y , Time.time * RotationSpeeds.z), Vector3.one);
-             matrix.SetTRS(Vector3.zero, Quaternion.Euler(Time.time * RotationSpeeds.x, Time.time * RotationSpeeds.y , Time.time * RotationSpeeds.z), Vector3.one);
-
-            m_material.SetMatrix("_EnvMatrix", matrix);
-
-            yield return null;
-        }
-	}
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/ObjectSpin.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class ObjectSpin : MonoBehaviour
-    {
-        #pragma warning disable 0414
-        public enum MotionType { Rotation, SearchLight, Translation };
-        public MotionType Motion;
-
-        public Vector3 TranslationDistance = new Vector3(5, 0, 0);
-        public float TranslationSpeed = 1.0f;
-        public float SpinSpeed = 5;
-        public int RotationRange = 15;
-        private Transform m_transform;
-
-        private float m_time;
-        private Vector3 m_prevPOS;
-        private Vector3 m_initial_Rotation;
-        private Vector3 m_initial_Position;
-        private Color32 m_lightColor;
-
-        void Awake()
-        {
-            m_transform = transform;
-            m_initial_Rotation = m_transform.rotation.eulerAngles;
-            m_initial_Position = m_transform.position;
-
-            Light light = GetComponent<Light>();
-            m_lightColor = light != null ? light.color : Color.black;
-        }
-
-
-        // Update is called once per frame
-        void Update()
-        {
-            switch (Motion)
-            {
-                case MotionType.Rotation:
-                    m_transform.Rotate(0, SpinSpeed * Time.deltaTime, 0);
-                    break;
-                case MotionType.SearchLight:
-                    m_time += SpinSpeed * Time.deltaTime;
-                    m_transform.rotation = Quaternion.Euler(m_initial_Rotation.x, Mathf.Sin(m_time) * RotationRange + m_initial_Rotation.y, m_initial_Rotation.z);
-                    break;
-                case MotionType.Translation:
-                    m_time += TranslationSpeed * Time.deltaTime;
-
-                    float x = TranslationDistance.x * Mathf.Cos(m_time);
-                    float y = TranslationDistance.y * Mathf.Sin(m_time) * Mathf.Cos(m_time * 1f);
-                    float z = TranslationDistance.z * Mathf.Sin(m_time);
-
-                    m_transform.position = m_initial_Position + new Vector3(x, z, y);
-
-                    // Drawing light patterns because they can be cool looking.
-                    //if (Time.frameCount > 1)
-                    //    Debug.DrawLine(m_transform.position, m_prevPOS, m_lightColor, 100f);
-
-                    m_prevPOS = m_transform.position;
-                    break;
-            }
-        }
-    }
-}
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/ShaderPropAnimator.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-    
-    public class ShaderPropAnimator : MonoBehaviour
-    {
-
-        private Renderer m_Renderer;
-        private Material m_Material;
-
-        public AnimationCurve GlowCurve;
-
-        public float m_frame;
-
-        void Awake()
-        {
-            // Cache a reference to object's renderer
-            m_Renderer = GetComponent<Renderer>();
-
-            // Cache a reference to object's material and create an instance by doing so.
-            m_Material = m_Renderer.material;
-        }
-
-        void Start()
-        {
-            StartCoroutine(AnimateProperties());
-        }
-
-        IEnumerator AnimateProperties()
-        {
-            //float lightAngle;
-            float glowPower;
-            m_frame = Random.Range(0f, 1f);
-
-            while (true)
-            {
-                //lightAngle = (m_Material.GetFloat(ShaderPropertyIDs.ID_LightAngle) + Time.deltaTime) % 6.2831853f;
-                //m_Material.SetFloat(ShaderPropertyIDs.ID_LightAngle, lightAngle);
-
-                glowPower = GlowCurve.Evaluate(m_frame);
-                m_Material.SetFloat(ShaderUtilities.ID_GlowPower, glowPower);
-
-                m_frame += Time.deltaTime * Random.Range(0.2f, 0.3f);
-                yield return new WaitForEndOfFrame();
-            }
-        }
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/SimpleScript.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class SimpleScript : MonoBehaviour
-    {
-
-        private TextMeshPro m_textMeshPro;
-        //private TMP_FontAsset m_FontAsset;
-
-        private const string label = "The <#0050FF>count is: </color>{0:2}";
-        private float m_frame;
-
-
-        void Start()
-        {
-            // Add new TextMesh Pro Component
-            m_textMeshPro = gameObject.AddComponent<TextMeshPro>();
-
-            m_textMeshPro.autoSizeTextContainer = true;
-
-            // Load the Font Asset to be used.
-            //m_FontAsset = Resources.Load("Fonts & Materials/LiberationSans SDF", typeof(TMP_FontAsset)) as TMP_FontAsset;
-            //m_textMeshPro.font = m_FontAsset;
-
-            // Assign Material to TextMesh Pro Component
-            //m_textMeshPro.fontSharedMaterial = Resources.Load("Fonts & Materials/LiberationSans SDF - Bevel", typeof(Material)) as Material;
-            //m_textMeshPro.fontSharedMaterial.EnableKeyword("BEVEL_ON");
-
-            // Set various font settings.
-            m_textMeshPro.fontSize = 48;
-
-            m_textMeshPro.alignment = TextAlignmentOptions.Center;
-
-            //m_textMeshPro.anchorDampening = true; // Has been deprecated but under consideration for re-implementation.
-            //m_textMeshPro.enableAutoSizing = true;
-
-            //m_textMeshPro.characterSpacing = 0.2f;
-            //m_textMeshPro.wordSpacing = 0.1f;
-
-            //m_textMeshPro.enableCulling = true;
-            m_textMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
-
-            //textMeshPro.fontColor = new Color32(255, 255, 255, 255);
-        }
-
-
-        void Update()
-        {
-            m_textMeshPro.SetText(label, m_frame % 1000);
-            m_frame += 1 * Time.deltaTime;
-        }
-
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/SkewTextExample.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class SkewTextExample : MonoBehaviour
-    {
-
-        private TMP_Text m_TextComponent;
-
-        public AnimationCurve VertexCurve = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.25f, 2.0f), new Keyframe(0.5f, 0), new Keyframe(0.75f, 2.0f), new Keyframe(1, 0f));
-        //public float AngleMultiplier = 1.0f;
-        //public float SpeedMultiplier = 1.0f;
-        public float CurveScale = 1.0f;
-        public float ShearAmount = 1.0f;
-
-        void Awake()
-        {
-            m_TextComponent = gameObject.GetComponent<TMP_Text>();
-        }
-
-
-        void Start()
-        {
-            StartCoroutine(WarpText());
-        }
-
-
-        private AnimationCurve CopyAnimationCurve(AnimationCurve curve)
-        {
-            AnimationCurve newCurve = new AnimationCurve();
-
-            newCurve.keys = curve.keys;
-
-            return newCurve;
-        }
-
-
-        /// <summary>
-        ///  Method to curve text along a Unity animation curve.
-        /// </summary>
-        /// <param name="textComponent"></param>
-        /// <returns></returns>
-        IEnumerator WarpText()
-        {
-            VertexCurve.preWrapMode = WrapMode.Clamp;
-            VertexCurve.postWrapMode = WrapMode.Clamp;
-
-            //Mesh mesh = m_TextComponent.textInfo.meshInfo[0].mesh;
-
-            Vector3[] vertices;
-            Matrix4x4 matrix;
-
-            m_TextComponent.havePropertiesChanged = true; // Need to force the TextMeshPro Object to be updated.
-            CurveScale *= 10;
-            float old_CurveScale = CurveScale;
-            float old_ShearValue = ShearAmount;
-            AnimationCurve old_curve = CopyAnimationCurve(VertexCurve);
-
-            while (true)
-            {
-                if (!m_TextComponent.havePropertiesChanged && old_CurveScale == CurveScale && old_curve.keys[1].value == VertexCurve.keys[1].value && old_ShearValue == ShearAmount)
-                {
-                    yield return null;
-                    continue;
-                }
-
-                old_CurveScale = CurveScale;
-                old_curve = CopyAnimationCurve(VertexCurve);
-                old_ShearValue = ShearAmount;
-
-                m_TextComponent.ForceMeshUpdate(); // Generate the mesh and populate the textInfo with data we can use and manipulate.
-
-                TMP_TextInfo textInfo = m_TextComponent.textInfo;
-                int characterCount = textInfo.characterCount;
-
-
-                if (characterCount == 0) continue;
-
-                //vertices = textInfo.meshInfo[0].vertices;
-                //int lastVertexIndex = textInfo.characterInfo[characterCount - 1].vertexIndex;
-
-                float boundsMinX = m_TextComponent.bounds.min.x;  //textInfo.meshInfo[0].mesh.bounds.min.x;
-                float boundsMaxX = m_TextComponent.bounds.max.x;  //textInfo.meshInfo[0].mesh.bounds.max.x;
-
-
-
-                for (int i = 0; i < characterCount; i++)
-                {
-                    if (!textInfo.characterInfo[i].isVisible)
-                        continue;
-
-                    int vertexIndex = textInfo.characterInfo[i].vertexIndex;
-
-                    // Get the index of the mesh used by this character.
-                    int materialIndex = textInfo.characterInfo[i].materialReferenceIndex;
-
-                    vertices = textInfo.meshInfo[materialIndex].vertices;
-
-                    // Compute the baseline mid point for each character
-                    Vector3 offsetToMidBaseline = new Vector2((vertices[vertexIndex + 0].x + vertices[vertexIndex + 2].x) / 2, textInfo.characterInfo[i].baseLine);
-                    //float offsetY = VertexCurve.Evaluate((float)i / characterCount + loopCount / 50f); // Random.Range(-0.25f, 0.25f);
-
-                    // Apply offset to adjust our pivot point.
-                    vertices[vertexIndex + 0] += -offsetToMidBaseline;
-                    vertices[vertexIndex + 1] += -offsetToMidBaseline;
-                    vertices[vertexIndex + 2] += -offsetToMidBaseline;
-                    vertices[vertexIndex + 3] += -offsetToMidBaseline;
-
-                    // Apply the Shearing FX
-                    float shear_value = ShearAmount * 0.01f;
-                    Vector3 topShear = new Vector3(shear_value * (textInfo.characterInfo[i].topRight.y - textInfo.characterInfo[i].baseLine), 0, 0);
-                    Vector3 bottomShear = new Vector3(shear_value * (textInfo.characterInfo[i].baseLine - textInfo.characterInfo[i].bottomRight.y), 0, 0);
-
-                    vertices[vertexIndex + 0] += -bottomShear;
-                    vertices[vertexIndex + 1] += topShear;
-                    vertices[vertexIndex + 2] += topShear;
-                    vertices[vertexIndex + 3] += -bottomShear;
-
-
-                    // Compute the angle of rotation for each character based on the animation curve
-                    float x0 = (offsetToMidBaseline.x - boundsMinX) / (boundsMaxX - boundsMinX); // Character's position relative to the bounds of the mesh.
-                    float x1 = x0 + 0.0001f;
-                    float y0 = VertexCurve.Evaluate(x0) * CurveScale;
-                    float y1 = VertexCurve.Evaluate(x1) * CurveScale;
-
-                    Vector3 horizontal = new Vector3(1, 0, 0);
-                    //Vector3 normal = new Vector3(-(y1 - y0), (x1 * (boundsMaxX - boundsMinX) + boundsMinX) - offsetToMidBaseline.x, 0);
-                    Vector3 tangent = new Vector3(x1 * (boundsMaxX - boundsMinX) + boundsMinX, y1) - new Vector3(offsetToMidBaseline.x, y0);
-
-                    float dot = Mathf.Acos(Vector3.Dot(horizontal, tangent.normalized)) * 57.2957795f;
-                    Vector3 cross = Vector3.Cross(horizontal, tangent);
-                    float angle = cross.z > 0 ? dot : 360 - dot;
-
-                    matrix = Matrix4x4.TRS(new Vector3(0, y0, 0), Quaternion.Euler(0, 0, angle), Vector3.one);
-
-                    vertices[vertexIndex + 0] = matrix.MultiplyPoint3x4(vertices[vertexIndex + 0]);
-                    vertices[vertexIndex + 1] = matrix.MultiplyPoint3x4(vertices[vertexIndex + 1]);
-                    vertices[vertexIndex + 2] = matrix.MultiplyPoint3x4(vertices[vertexIndex + 2]);
-                    vertices[vertexIndex + 3] = matrix.MultiplyPoint3x4(vertices[vertexIndex + 3]);
-
-                    vertices[vertexIndex + 0] += offsetToMidBaseline;
-                    vertices[vertexIndex + 1] += offsetToMidBaseline;
-                    vertices[vertexIndex + 2] += offsetToMidBaseline;
-                    vertices[vertexIndex + 3] += offsetToMidBaseline;
-                }
-
-
-                // Upload the mesh with the revised information
-                m_TextComponent.UpdateVertexData();
-
-                yield return null; // new WaitForSeconds(0.025f);
-            }
-        }
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_DigitValidator.cs
-```csharp
-﻿using UnityEngine;
-using System;
-
-
-namespace TMPro
-{
-    /// <summary>
-    /// EXample of a Custom Character Input Validator to only allow digits from 0 to 9.
-    /// </summary>
-    [Serializable]
-    //[CreateAssetMenu(fileName = "InputValidator - Digits.asset", menuName = "TextMeshPro/Input Validators/Digits", order = 100)]
-    public class TMP_DigitValidator : TMP_InputValidator
-    {
-        // Custom text input validation function
-        public override char Validate(ref string text, ref int pos, char ch)
-        {
-            if (ch >= '0' && ch <= '9')
-            {
-                text += ch;
-                pos += 1;
-                return ch;
-            }
-
-            return (char)0;
-        }
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_ExampleScript_01.cs
-```csharp
-﻿using UnityEngine;
-using UnityEngine.UI;
-using System.Collections;
-using TMPro;
-
-
-namespace TMPro.Examples
-{
-
-    public class TMP_ExampleScript_01 : MonoBehaviour
-    {
-        public enum objectType { TextMeshPro = 0, TextMeshProUGUI = 1 };
-
-        public objectType ObjectType;
-        public bool isStatic;
-
-        private TMP_Text m_text;
-
-        //private TMP_InputField m_inputfield;
-
-
-        private const string k_label = "The count is <#0080ff>{0}</color>";
-        private int count;
-
-        void Awake()
-        {
-            // Get a reference to the TMP text component if one already exists otherwise add one.
-            // This example show the convenience of having both TMP components derive from TMP_Text. 
-            if (ObjectType == 0)
-                m_text = GetComponent<TextMeshPro>() ?? gameObject.AddComponent<TextMeshPro>();
-            else
-                m_text = GetComponent<TextMeshProUGUI>() ?? gameObject.AddComponent<TextMeshProUGUI>();
-
-            // Load a new font asset and assign it to the text object.
-            m_text.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/Anton SDF");
-
-            // Load a new material preset which was created with the context menu duplicate.
-            m_text.fontSharedMaterial = Resources.Load<Material>("Fonts & Materials/Anton SDF - Drop Shadow");
-
-            // Set the size of the font.
-            m_text.fontSize = 120;
-
-            // Set the text
-            m_text.text = "A <#0080ff>simple</color> line of text.";
-
-            // Get the preferred width and height based on the supplied width and height as opposed to the actual size of the current text container.
-            Vector2 size = m_text.GetPreferredValues(Mathf.Infinity, Mathf.Infinity);
-
-            // Set the size of the RectTransform based on the new calculated values.
-            m_text.rectTransform.sizeDelta = new Vector2(size.x, size.y);
-        }
-
-
-        void Update()
-        {
-            if (!isStatic)
-            {
-                m_text.SetText(k_label, count % 1000);
-                count += 1;
-            }
-        }
-
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_FrameRateCounter.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class TMP_FrameRateCounter : MonoBehaviour
-    {
-        public float UpdateInterval = 5.0f;
-        private float m_LastInterval = 0;
-        private int m_Frames = 0;
-
-        public enum FpsCounterAnchorPositions { TopLeft, BottomLeft, TopRight, BottomRight };
-
-        public FpsCounterAnchorPositions AnchorPosition = FpsCounterAnchorPositions.TopRight;
-
-        private string htmlColorTag;
-        private const string fpsLabel = "{0:2}</color> <#8080ff>FPS \n<#FF8000>{1:2} <#8080ff>MS";
-
-        private TextMeshPro m_TextMeshPro;
-        private Transform m_frameCounter_transform;
-        private Camera m_camera;
-
-        private FpsCounterAnchorPositions last_AnchorPosition;
-
-        void Awake()
-        {
-            if (!enabled)
-                return;
-
-            m_camera = Camera.main;
-            Application.targetFrameRate = 9999;
-
-            GameObject frameCounter = new GameObject("Frame Counter");
-
-            m_TextMeshPro = frameCounter.AddComponent<TextMeshPro>();
-            m_TextMeshPro.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
-            m_TextMeshPro.fontSharedMaterial = Resources.Load<Material>("Fonts & Materials/LiberationSans SDF - Overlay");
-
-
-            m_frameCounter_transform = frameCounter.transform;
-            m_frameCounter_transform.SetParent(m_camera.transform);
-            m_frameCounter_transform.localRotation = Quaternion.identity;
-
-            m_TextMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
-            m_TextMeshPro.fontSize = 24;
-            //m_TextMeshPro.FontColor = new Color32(255, 255, 255, 128);
-            //m_TextMeshPro.edgeWidth = .15f;
-            //m_TextMeshPro.isOverlay = true;
-
-            //m_TextMeshPro.FaceColor = new Color32(255, 128, 0, 0);
-            //m_TextMeshPro.EdgeColor = new Color32(0, 255, 0, 255);
-            //m_TextMeshPro.FontMaterial.renderQueue = 4000;
-
-            //m_TextMeshPro.CreateSoftShadowClone(new Vector2(1f, -1f));
-
-            Set_FrameCounter_Position(AnchorPosition);
-            last_AnchorPosition = AnchorPosition;
-
-
-        }
-
-        void Start()
-        {
-            m_LastInterval = Time.realtimeSinceStartup;
-            m_Frames = 0;
-        }
-
-        void Update()
-        {
-            if (AnchorPosition != last_AnchorPosition)
-                Set_FrameCounter_Position(AnchorPosition);
-
-            last_AnchorPosition = AnchorPosition;
-
-            m_Frames += 1;
-            float timeNow = Time.realtimeSinceStartup;
-
-            if (timeNow > m_LastInterval + UpdateInterval)
-            {
-                // display two fractional digits (f2 format)
-                float fps = m_Frames / (timeNow - m_LastInterval);
-                float ms = 1000.0f / Mathf.Max(fps, 0.00001f);
-
-                if (fps < 30)
-                    htmlColorTag = "<color=yellow>";
-                else if (fps < 10)
-                    htmlColorTag = "<color=red>";
-                else
-                    htmlColorTag = "<color=green>";
-
-                //string format = System.String.Format(htmlColorTag + "{0:F2} </color>FPS \n{1:F2} <#8080ff>MS",fps, ms);
-                //m_TextMeshPro.text = format;
-
-                m_TextMeshPro.SetText(htmlColorTag + fpsLabel, fps, ms);
-
-                m_Frames = 0;
-                m_LastInterval = timeNow;
-            }
-        }
-
-
-        void Set_FrameCounter_Position(FpsCounterAnchorPositions anchor_position)
-        {
-            //Debug.Log("Changing frame counter anchor position.");
-            m_TextMeshPro.margin = new Vector4(1f, 1f, 1f, 1f);
-
-            switch (anchor_position)
-            {
-                case FpsCounterAnchorPositions.TopLeft:
-                    m_TextMeshPro.alignment = TextAlignmentOptions.TopLeft;
-                    m_TextMeshPro.rectTransform.pivot = new Vector2(0, 1);
-                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(0, 1, 100.0f));
-                    break;
-                case FpsCounterAnchorPositions.BottomLeft:
-                    m_TextMeshPro.alignment = TextAlignmentOptions.BottomLeft;
-                    m_TextMeshPro.rectTransform.pivot = new Vector2(0, 0);
-                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(0, 0, 100.0f));
-                    break;
-                case FpsCounterAnchorPositions.TopRight:
-                    m_TextMeshPro.alignment = TextAlignmentOptions.TopRight;
-                    m_TextMeshPro.rectTransform.pivot = new Vector2(1, 1);
-                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(1, 1, 100.0f));
-                    break;
-                case FpsCounterAnchorPositions.BottomRight:
-                    m_TextMeshPro.alignment = TextAlignmentOptions.BottomRight;
-                    m_TextMeshPro.rectTransform.pivot = new Vector2(1, 0);
-                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(1, 0, 100.0f));
-                    break;
-            }
-        }
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_PhoneNumberValidator.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-using System;
-
-namespace TMPro
-{
-    /// <summary>
-    /// Example of a Custom Character Input Validator to only allow phone number in the (800) 555-1212 format.
-    /// </summary>
-    [Serializable]
-    //[CreateAssetMenu(fileName = "InputValidator - Phone Numbers.asset", menuName = "TextMeshPro/Input Validators/Phone Numbers")]
-    public class TMP_PhoneNumberValidator : TMP_InputValidator
-    {
-        // Custom text input validation function
-        public override char Validate(ref string text, ref int pos, char ch)
-        {
-            Debug.Log("Trying to validate...");
-            
-            // Return unless the character is a valid digit
-            if (ch < '0' && ch > '9') return (char)0;
-
-            int length = text.Length;
-
-            // Enforce Phone Number format for every character input.
-            for (int i = 0; i < length + 1; i++)
-            {
-                switch (i)
-                {
-                    case 0:
-                        if (i == length)
-                            text = "(" + ch;
-                        pos = 2;
-                        break;
-                    case 1:
-                        if (i == length)
-                            text += ch;
-                        pos = 2;
-                        break;
-                    case 2:
-                        if (i == length)
-                            text += ch;
-                        pos = 3;
-                        break;
-                    case 3:
-                        if (i == length)
-                            text += ch + ") ";
-                        pos = 6;
-                        break;
-                    case 4:
-                        if (i == length)
-                            text += ") " + ch;
-                        pos = 7;
-                        break;
-                    case 5:
-                        if (i == length)
-                            text += " " + ch;
-                        pos = 7;
-                        break;
-                    case 6:
-                        if (i == length)
-                            text += ch;
-                        pos = 7;
-                        break;
-                    case 7:
-                        if (i == length)
-                            text += ch;
-                        pos = 8;
-                        break;
-                    case 8:
-                        if (i == length)
-                            text += ch + "-";
-                        pos = 10;
-                        break;
-                    case 9:
-                        if (i == length)
-                            text += "-" + ch;
-                        pos = 11;
-                        break;
-                    case 10:
-                        if (i == length)
-                            text += ch;
-                        pos = 11;
-                        break;
-                    case 11:
-                        if (i == length)
-                            text += ch;
-                        pos = 12;
-                        break;
-                    case 12:
-                        if (i == length)
-                            text += ch;
-                        pos = 13;
-                        break;
-                    case 13:
-                        if (i == length)
-                            text += ch;
-                        pos = 14;
-                        break;
-                }
-            }
-
-            return ch;
-        }
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_TextEventCheck.cs
-```csharp
-﻿using UnityEngine;
-
-
-namespace TMPro.Examples
-{
-    public class TMP_TextEventCheck : MonoBehaviour
-    {
-
-        public TMP_TextEventHandler TextEventHandler;
-
-        private TMP_Text m_TextComponent;
-
-        void OnEnable()
-        {
-            if (TextEventHandler != null)
-            {
-                // Get a reference to the text component
-                m_TextComponent = TextEventHandler.GetComponent<TMP_Text>();
-                
-                TextEventHandler.onCharacterSelection.AddListener(OnCharacterSelection);
-                TextEventHandler.onSpriteSelection.AddListener(OnSpriteSelection);
-                TextEventHandler.onWordSelection.AddListener(OnWordSelection);
-                TextEventHandler.onLineSelection.AddListener(OnLineSelection);
-                TextEventHandler.onLinkSelection.AddListener(OnLinkSelection);
-            }
-        }
-
-
-        void OnDisable()
-        {
-            if (TextEventHandler != null)
-            {
-                TextEventHandler.onCharacterSelection.RemoveListener(OnCharacterSelection);
-                TextEventHandler.onSpriteSelection.RemoveListener(OnSpriteSelection);
-                TextEventHandler.onWordSelection.RemoveListener(OnWordSelection);
-                TextEventHandler.onLineSelection.RemoveListener(OnLineSelection);
-                TextEventHandler.onLinkSelection.RemoveListener(OnLinkSelection);
-            }
-        }
-
-
-        void OnCharacterSelection(char c, int index)
-        {
-            Debug.Log("Character [" + c + "] at Index: " + index + " has been selected.");
-        }
-
-        void OnSpriteSelection(char c, int index)
-        {
-            Debug.Log("Sprite [" + c + "] at Index: " + index + " has been selected.");
-        }
-
-        void OnWordSelection(string word, int firstCharacterIndex, int length)
-        {
-            Debug.Log("Word [" + word + "] with first character index of " + firstCharacterIndex + " and length of " + length + " has been selected.");
-        }
-
-        void OnLineSelection(string lineText, int firstCharacterIndex, int length)
-        {
-            Debug.Log("Line [" + lineText + "] with first character index of " + firstCharacterIndex + " and length of " + length + " has been selected.");
-        }
-
-        void OnLinkSelection(string linkID, string linkText, int linkIndex)
-        {
-            if (m_TextComponent != null)
-            {
-                TMP_LinkInfo linkInfo = m_TextComponent.textInfo.linkInfo[linkIndex];
-            }
-            
-            Debug.Log("Link Index: " + linkIndex + " with ID [" + linkID + "] and Text \"" + linkText + "\" has been selected.");
-        }
-
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_TextEventHandler.cs
-```csharp
-﻿using UnityEngine;
-using UnityEngine.Events;
-using UnityEngine.EventSystems;
-using System;
-
-
-namespace TMPro
-{
-
-    public class TMP_TextEventHandler : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
-    {
-        [Serializable]
-        public class CharacterSelectionEvent : UnityEvent<char, int> { }
-
-        [Serializable]
-        public class SpriteSelectionEvent : UnityEvent<char, int> { }
-
-        [Serializable]
-        public class WordSelectionEvent : UnityEvent<string, int, int> { }
-
-        [Serializable]
-        public class LineSelectionEvent : UnityEvent<string, int, int> { }
-
-        [Serializable]
-        public class LinkSelectionEvent : UnityEvent<string, string, int> { }
-
-
-        /// <summary>
-        /// Event delegate triggered when pointer is over a character.
-        /// </summary>
-        public CharacterSelectionEvent onCharacterSelection
-        {
-            get { return m_OnCharacterSelection; }
-            set { m_OnCharacterSelection = value; }
-        }
-        [SerializeField]
-        private CharacterSelectionEvent m_OnCharacterSelection = new CharacterSelectionEvent();
-
-
-        /// <summary>
-        /// Event delegate triggered when pointer is over a sprite.
-        /// </summary>
-        public SpriteSelectionEvent onSpriteSelection
-        {
-            get { return m_OnSpriteSelection; }
-            set { m_OnSpriteSelection = value; }
-        }
-        [SerializeField]
-        private SpriteSelectionEvent m_OnSpriteSelection = new SpriteSelectionEvent();
-
-
-        /// <summary>
-        /// Event delegate triggered when pointer is over a word.
-        /// </summary>
-        public WordSelectionEvent onWordSelection
-        {
-            get { return m_OnWordSelection; }
-            set { m_OnWordSelection = value; }
-        }
-        [SerializeField]
-        private WordSelectionEvent m_OnWordSelection = new WordSelectionEvent();
-
-
-        /// <summary>
-        /// Event delegate triggered when pointer is over a line.
-        /// </summary>
-        public LineSelectionEvent onLineSelection
-        {
-            get { return m_OnLineSelection; }
-            set { m_OnLineSelection = value; }
-        }
-        [SerializeField]
-        private LineSelectionEvent m_OnLineSelection = new LineSelectionEvent();
-
-
-        /// <summary>
-        /// Event delegate triggered when pointer is over a link.
-        /// </summary>
-        public LinkSelectionEvent onLinkSelection
-        {
-            get { return m_OnLinkSelection; }
-            set { m_OnLinkSelection = value; }
-        }
-        [SerializeField]
-        private LinkSelectionEvent m_OnLinkSelection = new LinkSelectionEvent();
-
-
-
-        private TMP_Text m_TextComponent;
-
-        private Camera m_Camera;
-        private Canvas m_Canvas;
-
-        private int m_selectedLink = -1;
-        private int m_lastCharIndex = -1;
-        private int m_lastWordIndex = -1;
-        private int m_lastLineIndex = -1;
-
-        void Awake()
-        {
-            // Get a reference to the text component.
-            m_TextComponent = gameObject.GetComponent<TMP_Text>();
-
-            // Get a reference to the camera rendering the text taking into consideration the text component type.
-            if (m_TextComponent.GetType() == typeof(TextMeshProUGUI))
-            {
-                m_Canvas = gameObject.GetComponentInParent<Canvas>();
-                if (m_Canvas != null)
-                {
-                    if (m_Canvas.renderMode == RenderMode.ScreenSpaceOverlay)
-                        m_Camera = null;
-                    else
-                        m_Camera = m_Canvas.worldCamera;
-                }
-            }
-            else
-            {
-                m_Camera = Camera.main;
-            }
-        }
-
-
-        void LateUpdate()
-        {
-            if (TMP_TextUtilities.IsIntersectingRectTransform(m_TextComponent.rectTransform, Input.mousePosition, m_Camera))
-            {
-                #region Nearest Character
-                /*int charIndex = TMP_TextUtilities.FindNearestCharacterOnLine(m_TextComponent, Input.mousePosition, 0, m_Camera, false);
-                if (charIndex != -1 && charIndex != m_lastCharIndex)
-                {
-                    m_lastCharIndex = charIndex;
-                }*/
-                #endregion
-
-
-                #region Example of Character or Sprite Selection
-                int charIndex = TMP_TextUtilities.FindIntersectingCharacter(m_TextComponent, Input.mousePosition, m_Camera, true);
-                if (charIndex != -1 && charIndex != m_lastCharIndex)
-                {
-                    m_lastCharIndex = charIndex;
-
-                    TMP_TextElementType elementType = m_TextComponent.textInfo.characterInfo[charIndex].elementType;
-
-                    // Send event to any event listeners depending on whether it is a character or sprite.
-                    if (elementType == TMP_TextElementType.Character)
-                        SendOnCharacterSelection(m_TextComponent.textInfo.characterInfo[charIndex].character, charIndex);
-                    else if (elementType == TMP_TextElementType.Sprite)
-                        SendOnSpriteSelection(m_TextComponent.textInfo.characterInfo[charIndex].character, charIndex);
-                }
-                #endregion
-
-
-                #region Example of Word Selection
-                // Check if Mouse intersects any words and if so assign a random color to that word.
-                int wordIndex = TMP_TextUtilities.FindIntersectingWord(m_TextComponent, Input.mousePosition, m_Camera);
-                if (wordIndex != -1 && wordIndex != m_lastWordIndex)
-                {
-                    m_lastWordIndex = wordIndex;
-
-                    // Get the information about the selected word.
-                    TMP_WordInfo wInfo = m_TextComponent.textInfo.wordInfo[wordIndex];
-
-                    // Send the event to any listeners.
-                    SendOnWordSelection(wInfo.GetWord(), wInfo.firstCharacterIndex, wInfo.characterCount);
-                }
-                #endregion
-
-
-                #region Example of Line Selection
-                // Check if Mouse intersects any words and if so assign a random color to that word.
-                int lineIndex = TMP_TextUtilities.FindIntersectingLine(m_TextComponent, Input.mousePosition, m_Camera);
-                if (lineIndex != -1 && lineIndex != m_lastLineIndex)
-                {
-                    m_lastLineIndex = lineIndex;
-
-                    // Get the information about the selected word.
-                    TMP_LineInfo lineInfo = m_TextComponent.textInfo.lineInfo[lineIndex];
-
-                    // Send the event to any listeners.
-                    char[] buffer = new char[lineInfo.characterCount];
-                    for (int i = 0; i < lineInfo.characterCount && i < m_TextComponent.textInfo.characterInfo.Length; i++)
-                    {
-                        buffer[i] = m_TextComponent.textInfo.characterInfo[i + lineInfo.firstCharacterIndex].character;
-                    }
-
-                    string lineText = new string(buffer);
-                    SendOnLineSelection(lineText, lineInfo.firstCharacterIndex, lineInfo.characterCount);
-                }
-                #endregion
-
-
-                #region Example of Link Handling
-                // Check if mouse intersects with any links.
-                int linkIndex = TMP_TextUtilities.FindIntersectingLink(m_TextComponent, Input.mousePosition, m_Camera);
-
-                // Handle new Link selection.
-                if (linkIndex != -1 && linkIndex != m_selectedLink)
-                {
-                    m_selectedLink = linkIndex;
-
-                    // Get information about the link.
-                    TMP_LinkInfo linkInfo = m_TextComponent.textInfo.linkInfo[linkIndex];
-
-                    // Send the event to any listeners.
-                    SendOnLinkSelection(linkInfo.GetLinkID(), linkInfo.GetLinkText(), linkIndex);
-                }
-                #endregion
-            }
-            else
-            {
-                // Reset all selections given we are hovering outside the text container bounds.
-                m_selectedLink = -1;
-                m_lastCharIndex = -1;
-                m_lastWordIndex = -1;
-                m_lastLineIndex = -1;
-            }
-        }
-
-
-        public void OnPointerEnter(PointerEventData eventData)
-        {
-            //Debug.Log("OnPointerEnter()");
-        }
-
-
-        public void OnPointerExit(PointerEventData eventData)
-        {
-            //Debug.Log("OnPointerExit()");
-        }
-
-
-        private void SendOnCharacterSelection(char character, int characterIndex)
-        {
-            if (onCharacterSelection != null)
-                onCharacterSelection.Invoke(character, characterIndex);
-        }
-
-        private void SendOnSpriteSelection(char character, int characterIndex)
-        {
-            if (onSpriteSelection != null)
-                onSpriteSelection.Invoke(character, characterIndex);
-        }
-
-        private void SendOnWordSelection(string word, int charIndex, int length)
-        {
-            if (onWordSelection != null)
-                onWordSelection.Invoke(word, charIndex, length);
-        }
-
-        private void SendOnLineSelection(string line, int charIndex, int length)
-        {
-            if (onLineSelection != null)
-                onLineSelection.Invoke(line, charIndex, length);
-        }
-
-        private void SendOnLinkSelection(string linkID, string linkText, int linkIndex)
-        {
-            if (onLinkSelection != null)
-                onLinkSelection.Invoke(linkID, linkText, linkIndex);
-        }
-
-    }
-}
-
+-e 
 ```
 
 # File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_TextInfoDebugTool.cs
@@ -3070,169 +1544,210 @@ namespace TMPro.Examples
     }
 }
 
-
+-e 
 ```
 
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_TextSelector_A.cs
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/VertexJitter.cs
 ```csharp
 ﻿using UnityEngine;
-using UnityEngine.EventSystems;
 using System.Collections;
 
 
 namespace TMPro.Examples
 {
 
-    public class TMP_TextSelector_A : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    public class VertexJitter : MonoBehaviour
     {
-        private TextMeshPro m_TextMeshPro;
 
-        private Camera m_Camera;
+        public float AngleMultiplier = 1.0f;
+        public float SpeedMultiplier = 1.0f;
+        public float CurveScale = 1.0f;
 
-        private bool m_isHoveringObject;
-        private int m_selectedLink = -1;
-        private int m_lastCharIndex = -1;
-        private int m_lastWordIndex = -1;
+        private TMP_Text m_TextComponent;
+        private bool hasTextChanged;
+
+        /// <summary>
+        /// Structure to hold pre-computed animation data.
+        /// </summary>
+        private struct VertexAnim
+        {
+            public float angleRange;
+            public float angle;
+            public float speed;
+        }
 
         void Awake()
         {
-            m_TextMeshPro = gameObject.GetComponent<TextMeshPro>();
-            m_Camera = Camera.main;
+            m_TextComponent = GetComponent<TMP_Text>();
+        }
 
-            // Force generation of the text object so we have valid data to work with. This is needed since LateUpdate() will be called before the text object has a chance to generated when entering play mode.
-            m_TextMeshPro.ForceMeshUpdate();
+        void OnEnable()
+        {
+            // Subscribe to event fired when text object has been regenerated.
+            TMPro_EventManager.TEXT_CHANGED_EVENT.Add(ON_TEXT_CHANGED);
+        }
+
+        void OnDisable()
+        {
+            TMPro_EventManager.TEXT_CHANGED_EVENT.Remove(ON_TEXT_CHANGED);
         }
 
 
-        void LateUpdate()
+        void Start()
         {
-            m_isHoveringObject = false;
+            StartCoroutine(AnimateVertexColors());
+        }
 
-            if (TMP_TextUtilities.IsIntersectingRectTransform(m_TextMeshPro.rectTransform, Input.mousePosition, Camera.main))
+
+        void ON_TEXT_CHANGED(Object obj)
+        {
+            if (obj == m_TextComponent)
+                hasTextChanged = true;
+        }
+
+        /// <summary>
+        /// Method to animate vertex colors of a TMP Text object.
+        /// </summary>
+        /// <returns></returns>
+        IEnumerator AnimateVertexColors()
+        {
+
+            // We force an update of the text object since it would only be updated at the end of the frame. Ie. before this code is executed on the first frame.
+            // Alternatively, we could yield and wait until the end of the frame when the text object will be generated.
+            m_TextComponent.ForceMeshUpdate();
+
+            TMP_TextInfo textInfo = m_TextComponent.textInfo;
+
+            Matrix4x4 matrix;
+
+            int loopCount = 0;
+            hasTextChanged = true;
+
+            // Create an Array which contains pre-computed Angle Ranges and Speeds for a bunch of characters.
+            VertexAnim[] vertexAnim = new VertexAnim[1024];
+            for (int i = 0; i < 1024; i++)
             {
-                m_isHoveringObject = true;
+                vertexAnim[i].angleRange = Random.Range(10f, 25f);
+                vertexAnim[i].speed = Random.Range(1f, 3f);
             }
 
-            if (m_isHoveringObject)
+            // Cache the vertex data of the text object as the Jitter FX is applied to the original position of the characters.
+            TMP_MeshInfo[] cachedMeshInfo = textInfo.CopyMeshInfoVertexData();
+
+            while (true)
             {
-                #region Example of Character Selection
-                int charIndex = TMP_TextUtilities.FindIntersectingCharacter(m_TextMeshPro, Input.mousePosition, Camera.main, true);
-                if (charIndex != -1 && charIndex != m_lastCharIndex && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
+                // Get new copy of vertex data if the text has changed.
+                if (hasTextChanged)
                 {
-                    //Debug.Log("[" + m_TextMeshPro.textInfo.characterInfo[charIndex].character + "] has been selected.");
+                    // Update the copy of the vertex data for the text object.
+                    cachedMeshInfo = textInfo.CopyMeshInfoVertexData();
 
-                    m_lastCharIndex = charIndex;
-
-                    int meshIndex = m_TextMeshPro.textInfo.characterInfo[charIndex].materialReferenceIndex;
-
-                    int vertexIndex = m_TextMeshPro.textInfo.characterInfo[charIndex].vertexIndex;
-
-                    Color32 c = new Color32((byte)Random.Range(0, 255), (byte)Random.Range(0, 255), (byte)Random.Range(0, 255), 255);
-
-                    Color32[] vertexColors = m_TextMeshPro.textInfo.meshInfo[meshIndex].colors32;
-
-                    vertexColors[vertexIndex + 0] = c;
-                    vertexColors[vertexIndex + 1] = c;
-                    vertexColors[vertexIndex + 2] = c;
-                    vertexColors[vertexIndex + 3] = c;
-
-                    //m_TextMeshPro.mesh.colors32 = vertexColors;
-                    m_TextMeshPro.textInfo.meshInfo[meshIndex].mesh.colors32 = vertexColors;
-                }
-                #endregion
-
-                #region Example of Link Handling
-                // Check if mouse intersects with any links.
-                int linkIndex = TMP_TextUtilities.FindIntersectingLink(m_TextMeshPro, Input.mousePosition, m_Camera);
-
-                // Clear previous link selection if one existed.
-                if ((linkIndex == -1 && m_selectedLink != -1) || linkIndex != m_selectedLink)
-                {
-                    //m_TextPopup_RectTransform.gameObject.SetActive(false);
-                    m_selectedLink = -1;
+                    hasTextChanged = false;
                 }
 
-                // Handle new Link selection.
-                if (linkIndex != -1 && linkIndex != m_selectedLink)
+                int characterCount = textInfo.characterCount;
+
+                // If No Characters then just yield and wait for some text to be added
+                if (characterCount == 0)
                 {
-                    m_selectedLink = linkIndex;
-
-                    TMP_LinkInfo linkInfo = m_TextMeshPro.textInfo.linkInfo[linkIndex];
-
-                    // The following provides an example of how to access the link properties.
-                    //Debug.Log("Link ID: \"" + linkInfo.GetLinkID() + "\"   Link Text: \"" + linkInfo.GetLinkText() + "\""); // Example of how to retrieve the Link ID and Link Text.
-
-                    Vector3 worldPointInRectangle;
-
-                    RectTransformUtility.ScreenPointToWorldPointInRectangle(m_TextMeshPro.rectTransform, Input.mousePosition, m_Camera, out worldPointInRectangle);
-
-                    switch (linkInfo.GetLinkID())
-                    {
-                        case "id_01": // 100041637: // id_01
-                                      //m_TextPopup_RectTransform.position = worldPointInRectangle;
-                                      //m_TextPopup_RectTransform.gameObject.SetActive(true);
-                                      //m_TextPopup_TMPComponent.text = k_LinkText + " ID 01";
-                            break;
-                        case "id_02": // 100041638: // id_02
-                                      //m_TextPopup_RectTransform.position = worldPointInRectangle;
-                                      //m_TextPopup_RectTransform.gameObject.SetActive(true);
-                                      //m_TextPopup_TMPComponent.text = k_LinkText + " ID 02";
-                            break;
-                    }
+                    yield return new WaitForSeconds(0.25f);
+                    continue;
                 }
-                #endregion
 
 
-                #region Example of Word Selection
-                // Check if Mouse intersects any words and if so assign a random color to that word.
-                int wordIndex = TMP_TextUtilities.FindIntersectingWord(m_TextMeshPro, Input.mousePosition, Camera.main);
-                if (wordIndex != -1 && wordIndex != m_lastWordIndex)
+                for (int i = 0; i < characterCount; i++)
                 {
-                    m_lastWordIndex = wordIndex;
+                    TMP_CharacterInfo charInfo = textInfo.characterInfo[i];
 
-                    TMP_WordInfo wInfo = m_TextMeshPro.textInfo.wordInfo[wordIndex];
+                    // Skip characters that are not visible and thus have no geometry to manipulate.
+                    if (!charInfo.isVisible)
+                        continue;
 
-                    Vector3 wordPOS = m_TextMeshPro.transform.TransformPoint(m_TextMeshPro.textInfo.characterInfo[wInfo.firstCharacterIndex].bottomLeft);
-                    wordPOS = Camera.main.WorldToScreenPoint(wordPOS);
+                    // Retrieve the pre-computed animation data for the given character.
+                    VertexAnim vertAnim = vertexAnim[i];
 
-                    //Debug.Log("Mouse Position: " + Input.mousePosition.ToString("f3") + "  Word Position: " + wordPOS.ToString("f3"));
+                    // Get the index of the material used by the current character.
+                    int materialIndex = textInfo.characterInfo[i].materialReferenceIndex;
 
-                    Color32[] vertexColors = m_TextMeshPro.textInfo.meshInfo[0].colors32;
+                    // Get the index of the first vertex used by this text element.
+                    int vertexIndex = textInfo.characterInfo[i].vertexIndex;
 
-                    Color32 c = new Color32((byte)Random.Range(0, 255), (byte)Random.Range(0, 255), (byte)Random.Range(0, 255), 255);
-                    for (int i = 0; i < wInfo.characterCount; i++)
-                    {
-                        int vertexIndex = m_TextMeshPro.textInfo.characterInfo[wInfo.firstCharacterIndex + i].vertexIndex;
+                    // Get the cached vertices of the mesh used by this text element (character or sprite).
+                    Vector3[] sourceVertices = cachedMeshInfo[materialIndex].vertices;
 
-                        vertexColors[vertexIndex + 0] = c;
-                        vertexColors[vertexIndex + 1] = c;
-                        vertexColors[vertexIndex + 2] = c;
-                        vertexColors[vertexIndex + 3] = c;
-                    }
+                    // Determine the center point of each character at the baseline.
+                    //Vector2 charMidBasline = new Vector2((sourceVertices[vertexIndex + 0].x + sourceVertices[vertexIndex + 2].x) / 2, charInfo.baseLine);
+                    // Determine the center point of each character.
+                    Vector2 charMidBasline = (sourceVertices[vertexIndex + 0] + sourceVertices[vertexIndex + 2]) / 2;
 
-                    m_TextMeshPro.mesh.colors32 = vertexColors;
+                    // Need to translate all 4 vertices of each quad to aligned with middle of character / baseline.
+                    // This is needed so the matrix TRS is applied at the origin for each character.
+                    Vector3 offset = charMidBasline;
+
+                    Vector3[] destinationVertices = textInfo.meshInfo[materialIndex].vertices;
+
+                    destinationVertices[vertexIndex + 0] = sourceVertices[vertexIndex + 0] - offset;
+                    destinationVertices[vertexIndex + 1] = sourceVertices[vertexIndex + 1] - offset;
+                    destinationVertices[vertexIndex + 2] = sourceVertices[vertexIndex + 2] - offset;
+                    destinationVertices[vertexIndex + 3] = sourceVertices[vertexIndex + 3] - offset;
+
+                    vertAnim.angle = Mathf.SmoothStep(-vertAnim.angleRange, vertAnim.angleRange, Mathf.PingPong(loopCount / 25f * vertAnim.speed, 1f));
+                    Vector3 jitterOffset = new Vector3(Random.Range(-.25f, .25f), Random.Range(-.25f, .25f), 0);
+
+                    matrix = Matrix4x4.TRS(jitterOffset * CurveScale, Quaternion.Euler(0, 0, Random.Range(-5f, 5f) * AngleMultiplier), Vector3.one);
+
+                    destinationVertices[vertexIndex + 0] = matrix.MultiplyPoint3x4(destinationVertices[vertexIndex + 0]);
+                    destinationVertices[vertexIndex + 1] = matrix.MultiplyPoint3x4(destinationVertices[vertexIndex + 1]);
+                    destinationVertices[vertexIndex + 2] = matrix.MultiplyPoint3x4(destinationVertices[vertexIndex + 2]);
+                    destinationVertices[vertexIndex + 3] = matrix.MultiplyPoint3x4(destinationVertices[vertexIndex + 3]);
+
+                    destinationVertices[vertexIndex + 0] += offset;
+                    destinationVertices[vertexIndex + 1] += offset;
+                    destinationVertices[vertexIndex + 2] += offset;
+                    destinationVertices[vertexIndex + 3] += offset;
+
+                    vertexAnim[i] = vertAnim;
                 }
-                #endregion
+
+                // Push changes into meshes
+                for (int i = 0; i < textInfo.meshInfo.Length; i++)
+                {
+                    textInfo.meshInfo[i].mesh.vertices = textInfo.meshInfo[i].vertices;
+                    m_TextComponent.UpdateGeometry(textInfo.meshInfo[i].mesh, i);
+                }
+
+                loopCount += 1;
+
+                yield return new WaitForSeconds(0.1f);
             }
-        }
-
-
-        public void OnPointerEnter(PointerEventData eventData)
-        {
-            Debug.Log("OnPointerEnter()");
-            m_isHoveringObject = true;
-        }
-
-
-        public void OnPointerExit(PointerEventData eventData)
-        {
-            Debug.Log("OnPointerExit()");
-            m_isHoveringObject = false;
         }
 
     }
-}
+}-e 
+```
 
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/DropdownSample.cs
+```csharp
+﻿using TMPro;
+using UnityEngine;
+
+public class DropdownSample: MonoBehaviour
+{
+	[SerializeField]
+	private TextMeshProUGUI text = null;
+
+	[SerializeField]
+	private TMP_Dropdown dropdownWithoutPlaceholder = null;
+
+	[SerializeField]
+	private TMP_Dropdown dropdownWithPlaceholder = null;
+
+	public void OnButtonClick()
+	{
+		text.text = dropdownWithPlaceholder.value > -1 ? "Selected values:\n" + dropdownWithoutPlaceholder.value + " - " + dropdownWithPlaceholder.value : "Error: Please make a selection";
+	}
+}
+-e 
 ```
 
 # File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_TextSelector_B.cs
@@ -3784,228 +2299,10 @@ namespace TMPro.Examples
         }
     }
 }
-
+-e 
 ```
 
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_UiFrameRateCounter.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class TMP_UiFrameRateCounter : MonoBehaviour
-    {
-        public float UpdateInterval = 5.0f;
-        private float m_LastInterval = 0;
-        private int m_Frames = 0;
-
-        public enum FpsCounterAnchorPositions { TopLeft, BottomLeft, TopRight, BottomRight };
-
-        public FpsCounterAnchorPositions AnchorPosition = FpsCounterAnchorPositions.TopRight;
-
-        private string htmlColorTag;
-        private const string fpsLabel = "{0:2}</color> <#8080ff>FPS \n<#FF8000>{1:2} <#8080ff>MS";
-
-        private TextMeshProUGUI m_TextMeshPro;
-        private RectTransform m_frameCounter_transform;
-
-        private FpsCounterAnchorPositions last_AnchorPosition;
-
-        void Awake()
-        {
-            if (!enabled)
-                return;
-
-            Application.targetFrameRate = 1000;
-
-            GameObject frameCounter = new GameObject("Frame Counter");
-            m_frameCounter_transform = frameCounter.AddComponent<RectTransform>();
-
-            m_frameCounter_transform.SetParent(this.transform, false);
-
-            m_TextMeshPro = frameCounter.AddComponent<TextMeshProUGUI>();
-            m_TextMeshPro.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
-            m_TextMeshPro.fontSharedMaterial = Resources.Load<Material>("Fonts & Materials/LiberationSans SDF - Overlay");
-
-            m_TextMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
-            m_TextMeshPro.fontSize = 36;
-
-            m_TextMeshPro.isOverlay = true;
-
-            Set_FrameCounter_Position(AnchorPosition);
-            last_AnchorPosition = AnchorPosition;
-        }
-
-
-        void Start()
-        {
-            m_LastInterval = Time.realtimeSinceStartup;
-            m_Frames = 0;
-        }
-
-
-        void Update()
-        {
-            if (AnchorPosition != last_AnchorPosition)
-                Set_FrameCounter_Position(AnchorPosition);
-
-            last_AnchorPosition = AnchorPosition;
-
-            m_Frames += 1;
-            float timeNow = Time.realtimeSinceStartup;
-
-            if (timeNow > m_LastInterval + UpdateInterval)
-            {
-                // display two fractional digits (f2 format)
-                float fps = m_Frames / (timeNow - m_LastInterval);
-                float ms = 1000.0f / Mathf.Max(fps, 0.00001f);
-
-                if (fps < 30)
-                    htmlColorTag = "<color=yellow>";
-                else if (fps < 10)
-                    htmlColorTag = "<color=red>";
-                else
-                    htmlColorTag = "<color=green>";
-
-                m_TextMeshPro.SetText(htmlColorTag + fpsLabel, fps, ms);
-
-                m_Frames = 0;
-                m_LastInterval = timeNow;
-            }
-        }
-
-
-        void Set_FrameCounter_Position(FpsCounterAnchorPositions anchor_position)
-        {
-            switch (anchor_position)
-            {
-                case FpsCounterAnchorPositions.TopLeft:
-                    m_TextMeshPro.alignment = TextAlignmentOptions.TopLeft;
-                    m_frameCounter_transform.pivot = new Vector2(0, 1);
-                    m_frameCounter_transform.anchorMin = new Vector2(0.01f, 0.99f);
-                    m_frameCounter_transform.anchorMax = new Vector2(0.01f, 0.99f);
-                    m_frameCounter_transform.anchoredPosition = new Vector2(0, 1);
-                    break;
-                case FpsCounterAnchorPositions.BottomLeft:
-                    m_TextMeshPro.alignment = TextAlignmentOptions.BottomLeft;
-                    m_frameCounter_transform.pivot = new Vector2(0, 0);
-                    m_frameCounter_transform.anchorMin = new Vector2(0.01f, 0.01f);
-                    m_frameCounter_transform.anchorMax = new Vector2(0.01f, 0.01f);
-                    m_frameCounter_transform.anchoredPosition = new Vector2(0, 0);
-                    break;
-                case FpsCounterAnchorPositions.TopRight:
-                    m_TextMeshPro.alignment = TextAlignmentOptions.TopRight;
-                    m_frameCounter_transform.pivot = new Vector2(1, 1);
-                    m_frameCounter_transform.anchorMin = new Vector2(0.99f, 0.99f);
-                    m_frameCounter_transform.anchorMax = new Vector2(0.99f, 0.99f);
-                    m_frameCounter_transform.anchoredPosition = new Vector2(1, 1);
-                    break;
-                case FpsCounterAnchorPositions.BottomRight:
-                    m_TextMeshPro.alignment = TextAlignmentOptions.BottomRight;
-                    m_frameCounter_transform.pivot = new Vector2(1, 0);
-                    m_frameCounter_transform.anchorMin = new Vector2(0.99f, 0.01f);
-                    m_frameCounter_transform.anchorMax = new Vector2(0.99f, 0.01f);
-                    m_frameCounter_transform.anchoredPosition = new Vector2(1, 0);
-                    break;
-            }
-        }
-    }
-}
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMPro_InstructionOverlay.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-    
-    public class TMPro_InstructionOverlay : MonoBehaviour
-    {
-
-        public enum FpsCounterAnchorPositions { TopLeft, BottomLeft, TopRight, BottomRight };
-
-        public FpsCounterAnchorPositions AnchorPosition = FpsCounterAnchorPositions.BottomLeft;
-
-        private const string instructions = "Camera Control - <#ffff00>Shift + RMB\n</color>Zoom - <#ffff00>Mouse wheel.";
-
-        private TextMeshPro m_TextMeshPro;
-        private TextContainer m_textContainer;
-        private Transform m_frameCounter_transform;
-        private Camera m_camera;
-
-        //private FpsCounterAnchorPositions last_AnchorPosition;
-
-        void Awake()
-        {
-            if (!enabled)
-                return;
-
-            m_camera = Camera.main;
-
-            GameObject frameCounter = new GameObject("Frame Counter");
-            m_frameCounter_transform = frameCounter.transform;
-            m_frameCounter_transform.parent = m_camera.transform;
-            m_frameCounter_transform.localRotation = Quaternion.identity;
-
-
-            m_TextMeshPro = frameCounter.AddComponent<TextMeshPro>();
-            m_TextMeshPro.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
-            m_TextMeshPro.fontSharedMaterial = Resources.Load<Material>("Fonts & Materials/LiberationSans SDF - Overlay");
-
-            m_TextMeshPro.fontSize = 30;
-
-            m_TextMeshPro.isOverlay = true;
-            m_textContainer = frameCounter.GetComponent<TextContainer>();
-
-            Set_FrameCounter_Position(AnchorPosition);
-            //last_AnchorPosition = AnchorPosition;
-
-            m_TextMeshPro.text = instructions;
-
-        }
-
-
-
-
-        void Set_FrameCounter_Position(FpsCounterAnchorPositions anchor_position)
-        {
-
-            switch (anchor_position)
-            {
-                case FpsCounterAnchorPositions.TopLeft:
-                    //m_TextMeshPro.anchor = AnchorPositions.TopLeft;
-                    m_textContainer.anchorPosition = TextContainerAnchors.TopLeft;
-                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(0, 1, 100.0f));
-                    break;
-                case FpsCounterAnchorPositions.BottomLeft:
-                    //m_TextMeshPro.anchor = AnchorPositions.BottomLeft;
-                    m_textContainer.anchorPosition = TextContainerAnchors.BottomLeft;
-                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(0, 0, 100.0f));
-                    break;
-                case FpsCounterAnchorPositions.TopRight:
-                    //m_TextMeshPro.anchor = AnchorPositions.TopRight;
-                    m_textContainer.anchorPosition = TextContainerAnchors.TopRight;
-                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(1, 1, 100.0f));
-                    break;
-                case FpsCounterAnchorPositions.BottomRight:
-                    //m_TextMeshPro.anchor = AnchorPositions.BottomRight;
-                    m_textContainer.anchorPosition = TextContainerAnchors.BottomRight;
-                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(1, 0, 100.0f));
-                    break;
-            }
-        }
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TeleType.cs
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/CameraController.cs
 ```csharp
 using UnityEngine;
 using System.Collections;
@@ -4013,83 +2310,355 @@ using System.Collections;
 
 namespace TMPro.Examples
 {
-
-    public class TeleType : MonoBehaviour
+    
+    public class CameraController : MonoBehaviour
     {
+        public enum CameraModes { Follow, Isometric, Free }
+
+        private Transform cameraTransform;
+        private Transform dummyTarget;
+
+        public Transform CameraTarget;
+
+        public float FollowDistance = 30.0f;
+        public float MaxFollowDistance = 100.0f;
+        public float MinFollowDistance = 2.0f;
+
+        public float ElevationAngle = 30.0f;
+        public float MaxElevationAngle = 85.0f;
+        public float MinElevationAngle = 0f;
+
+        public float OrbitalAngle = 0f;
+
+        public CameraModes CameraMode = CameraModes.Follow;
+
+        public bool MovementSmoothing = true;
+        public bool RotationSmoothing = false;
+        private bool previousSmoothing;
+
+        public float MovementSmoothingValue = 25f;
+        public float RotationSmoothingValue = 5.0f;
+
+        public float MoveSensitivity = 2.0f;
+
+        private Vector3 currentVelocity = Vector3.zero;
+        private Vector3 desiredPosition;
+        private float mouseX;
+        private float mouseY;
+        private Vector3 moveVector;
+        private float mouseWheel;
+
+        // Controls for Touches on Mobile devices
+        //private float prev_ZoomDelta;
 
 
-        //[Range(0, 100)]
-        //public int RevealSpeed = 50;
-
-        private string label01 = "Example <sprite=2> of using <sprite=7> <#ffa000>Graphics Inline</color> <sprite=5> with Text in <font=\"Bangers SDF\" material=\"Bangers SDF - Drop Shadow\">TextMesh<#40a0ff>Pro</color></font><sprite=0> and Unity<sprite=1>";
-        private string label02 = "Example <sprite=2> of using <sprite=7> <#ffa000>Graphics Inline</color> <sprite=5> with Text in <font=\"Bangers SDF\" material=\"Bangers SDF - Drop Shadow\">TextMesh<#40a0ff>Pro</color></font><sprite=0> and Unity<sprite=2>";
-
-
-        private TMP_Text m_textMeshPro;
+        private const string event_SmoothingValue = "Slider - Smoothing Value";
+        private const string event_FollowDistance = "Slider - Camera Zoom";
 
 
         void Awake()
         {
-            // Get Reference to TextMeshPro Component
-            m_textMeshPro = GetComponent<TMP_Text>();
-            m_textMeshPro.text = label01;
-            m_textMeshPro.textWrappingMode = TextWrappingModes.Normal;
-            m_textMeshPro.alignment = TextAlignmentOptions.Top;
+            if (QualitySettings.vSyncCount > 0)
+                Application.targetFrameRate = 60;
+            else
+                Application.targetFrameRate = -1;
+
+            if (Application.platform == RuntimePlatform.IPhonePlayer || Application.platform == RuntimePlatform.Android)
+                Input.simulateMouseWithTouches = false;
+
+            cameraTransform = transform;
+            previousSmoothing = MovementSmoothing;
+        }
 
 
+        // Use this for initialization
+        void Start()
+        {
+            if (CameraTarget == null)
+            {
+                // If we don't have a target (assigned by the player, create a dummy in the center of the scene).
+                dummyTarget = new GameObject("Camera Target").transform;
+                CameraTarget = dummyTarget;
+            }
+        }
 
-            //if (GetComponentInParent(typeof(Canvas)) as Canvas == null)
-            //{
-            //    GameObject canvas = new GameObject("Canvas", typeof(Canvas));
-            //    gameObject.transform.SetParent(canvas.transform);
-            //    canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+        // Update is called once per frame
+        void LateUpdate()
+        {
+            GetPlayerInput();
 
-            //    // Set RectTransform Size
-            //    gameObject.GetComponent<RectTransform>().sizeDelta = new Vector2(500, 300);
-            //    m_textMeshPro.fontSize = 48;
-            //}
 
+            // Check if we still have a valid target
+            if (CameraTarget != null)
+            {
+                if (CameraMode == CameraModes.Isometric)
+                {
+                    desiredPosition = CameraTarget.position + Quaternion.Euler(ElevationAngle, OrbitalAngle, 0f) * new Vector3(0, 0, -FollowDistance);
+                }
+                else if (CameraMode == CameraModes.Follow)
+                {
+                    desiredPosition = CameraTarget.position + CameraTarget.TransformDirection(Quaternion.Euler(ElevationAngle, OrbitalAngle, 0f) * (new Vector3(0, 0, -FollowDistance)));
+                }
+                else
+                {
+                    // Free Camera implementation
+                }
+
+                if (MovementSmoothing == true)
+                {
+                    // Using Smoothing
+                    cameraTransform.position = Vector3.SmoothDamp(cameraTransform.position, desiredPosition, ref currentVelocity, MovementSmoothingValue * Time.fixedDeltaTime);
+                    //cameraTransform.position = Vector3.Lerp(cameraTransform.position, desiredPosition, Time.deltaTime * 5.0f);
+                }
+                else
+                {
+                    // Not using Smoothing
+                    cameraTransform.position = desiredPosition;
+                }
+
+                if (RotationSmoothing == true)
+                    cameraTransform.rotation = Quaternion.Lerp(cameraTransform.rotation, Quaternion.LookRotation(CameraTarget.position - cameraTransform.position), RotationSmoothingValue * Time.deltaTime);
+                else
+                {
+                    cameraTransform.LookAt(CameraTarget);
+                }
+
+            }
 
         }
 
 
-        IEnumerator Start()
+
+        void GetPlayerInput()
         {
+            moveVector = Vector3.zero;
 
-            // Force and update of the mesh to get valid information.
-            m_textMeshPro.ForceMeshUpdate();
+            // Check Mouse Wheel Input prior to Shift Key so we can apply multiplier on Shift for Scrolling
+            mouseWheel = Input.GetAxis("Mouse ScrollWheel");
 
+            float touchCount = Input.touchCount;
 
-            int totalVisibleCharacters = m_textMeshPro.textInfo.characterCount; // Get # of Visible Character in text object
-            int counter = 0;
-            int visibleCount = 0;
-
-            while (true)
+            if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) || touchCount > 0)
             {
-                visibleCount = counter % (totalVisibleCharacters + 1);
+                mouseWheel *= 10;
 
-                m_textMeshPro.maxVisibleCharacters = visibleCount; // How many characters should TextMeshPro display?
+                if (Input.GetKeyDown(KeyCode.I))
+                    CameraMode = CameraModes.Isometric;
 
-                // Once the last character has been revealed, wait 1.0 second and start over.
-                if (visibleCount >= totalVisibleCharacters)
+                if (Input.GetKeyDown(KeyCode.F))
+                    CameraMode = CameraModes.Follow;
+
+                if (Input.GetKeyDown(KeyCode.S))
+                    MovementSmoothing = !MovementSmoothing;
+
+
+                // Check for right mouse button to change camera follow and elevation angle
+                if (Input.GetMouseButton(1))
                 {
-                    yield return new WaitForSeconds(1.0f);
-                    m_textMeshPro.text = label02;
-                    yield return new WaitForSeconds(1.0f);
-                    m_textMeshPro.text = label01;
-                    yield return new WaitForSeconds(1.0f);
+                    mouseY = Input.GetAxis("Mouse Y");
+                    mouseX = Input.GetAxis("Mouse X");
+
+                    if (mouseY > 0.01f || mouseY < -0.01f)
+                    {
+                        ElevationAngle -= mouseY * MoveSensitivity;
+                        // Limit Elevation angle between min & max values.
+                        ElevationAngle = Mathf.Clamp(ElevationAngle, MinElevationAngle, MaxElevationAngle);
+                    }
+
+                    if (mouseX > 0.01f || mouseX < -0.01f)
+                    {
+                        OrbitalAngle += mouseX * MoveSensitivity;
+                        if (OrbitalAngle > 360)
+                            OrbitalAngle -= 360;
+                        if (OrbitalAngle < 0)
+                            OrbitalAngle += 360;
+                    }
                 }
 
-                counter += 1;
+                // Get Input from Mobile Device
+                if (touchCount == 1 && Input.GetTouch(0).phase == TouchPhase.Moved)
+                {
+                    Vector2 deltaPosition = Input.GetTouch(0).deltaPosition;
 
-                yield return new WaitForSeconds(0.05f);
+                    // Handle elevation changes
+                    if (deltaPosition.y > 0.01f || deltaPosition.y < -0.01f)
+                    {
+                        ElevationAngle -= deltaPosition.y * 0.1f;
+                        // Limit Elevation angle between min & max values.
+                        ElevationAngle = Mathf.Clamp(ElevationAngle, MinElevationAngle, MaxElevationAngle);
+                    }
+
+
+                    // Handle left & right 
+                    if (deltaPosition.x > 0.01f || deltaPosition.x < -0.01f)
+                    {
+                        OrbitalAngle += deltaPosition.x * 0.1f;
+                        if (OrbitalAngle > 360)
+                            OrbitalAngle -= 360;
+                        if (OrbitalAngle < 0)
+                            OrbitalAngle += 360;
+                    }
+
+                }
+
+                // Check for left mouse button to select a new CameraTarget or to reset Follow position
+                if (Input.GetMouseButton(0))
+                {
+                    Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+                    RaycastHit hit;
+
+                    if (Physics.Raycast(ray, out hit, 300, 1 << 10 | 1 << 11 | 1 << 12 | 1 << 14))
+                    {
+                        if (hit.transform == CameraTarget)
+                        {
+                            // Reset Follow Position
+                            OrbitalAngle = 0;
+                        }
+                        else
+                        {
+                            CameraTarget = hit.transform;
+                            OrbitalAngle = 0;
+                            MovementSmoothing = previousSmoothing;
+                        }
+
+                    }
+                }
+
+
+                if (Input.GetMouseButton(2))
+                {
+                    if (dummyTarget == null)
+                    {
+                        // We need a Dummy Target to anchor the Camera
+                        dummyTarget = new GameObject("Camera Target").transform;
+                        dummyTarget.position = CameraTarget.position;
+                        dummyTarget.rotation = CameraTarget.rotation;
+                        CameraTarget = dummyTarget;
+                        previousSmoothing = MovementSmoothing;
+                        MovementSmoothing = false;
+                    }
+                    else if (dummyTarget != CameraTarget)
+                    {
+                        // Move DummyTarget to CameraTarget
+                        dummyTarget.position = CameraTarget.position;
+                        dummyTarget.rotation = CameraTarget.rotation;
+                        CameraTarget = dummyTarget;
+                        previousSmoothing = MovementSmoothing;
+                        MovementSmoothing = false;
+                    }
+
+
+                    mouseY = Input.GetAxis("Mouse Y");
+                    mouseX = Input.GetAxis("Mouse X");
+
+                    moveVector = cameraTransform.TransformDirection(mouseX, mouseY, 0);
+
+                    dummyTarget.Translate(-moveVector, Space.World);
+
+                }
+
             }
 
-            //Debug.Log("Done revealing the text.");
+            // Check Pinching to Zoom in - out on Mobile device
+            if (touchCount == 2)
+            {
+                Touch touch0 = Input.GetTouch(0);
+                Touch touch1 = Input.GetTouch(1);
+
+                Vector2 touch0PrevPos = touch0.position - touch0.deltaPosition;
+                Vector2 touch1PrevPos = touch1.position - touch1.deltaPosition;
+
+                float prevTouchDelta = (touch0PrevPos - touch1PrevPos).magnitude;
+                float touchDelta = (touch0.position - touch1.position).magnitude;
+
+                float zoomDelta = prevTouchDelta - touchDelta;
+
+                if (zoomDelta > 0.01f || zoomDelta < -0.01f)
+                {
+                    FollowDistance += zoomDelta * 0.25f;
+                    // Limit FollowDistance between min & max values.
+                    FollowDistance = Mathf.Clamp(FollowDistance, MinFollowDistance, MaxFollowDistance);
+                }
+
+
+            }
+
+            // Check MouseWheel to Zoom in-out
+            if (mouseWheel < -0.01f || mouseWheel > 0.01f)
+            {
+
+                FollowDistance -= mouseWheel * 5.0f;
+                // Limit FollowDistance between min & max values.
+                FollowDistance = Mathf.Clamp(FollowDistance, MinFollowDistance, MaxFollowDistance);
+            }
+
+
+        }
+    }
+}-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/SimpleScript.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class SimpleScript : MonoBehaviour
+    {
+
+        private TextMeshPro m_textMeshPro;
+        //private TMP_FontAsset m_FontAsset;
+
+        private const string label = "The <#0050FF>count is: </color>{0:2}";
+        private float m_frame;
+
+
+        void Start()
+        {
+            // Add new TextMesh Pro Component
+            m_textMeshPro = gameObject.AddComponent<TextMeshPro>();
+
+            m_textMeshPro.autoSizeTextContainer = true;
+
+            // Load the Font Asset to be used.
+            //m_FontAsset = Resources.Load("Fonts & Materials/LiberationSans SDF", typeof(TMP_FontAsset)) as TMP_FontAsset;
+            //m_textMeshPro.font = m_FontAsset;
+
+            // Assign Material to TextMesh Pro Component
+            //m_textMeshPro.fontSharedMaterial = Resources.Load("Fonts & Materials/LiberationSans SDF - Bevel", typeof(Material)) as Material;
+            //m_textMeshPro.fontSharedMaterial.EnableKeyword("BEVEL_ON");
+
+            // Set various font settings.
+            m_textMeshPro.fontSize = 48;
+
+            m_textMeshPro.alignment = TextAlignmentOptions.Center;
+
+            //m_textMeshPro.anchorDampening = true; // Has been deprecated but under consideration for re-implementation.
+            //m_textMeshPro.enableAutoSizing = true;
+
+            //m_textMeshPro.characterSpacing = 0.2f;
+            //m_textMeshPro.wordSpacing = 0.1f;
+
+            //m_textMeshPro.enableCulling = true;
+            m_textMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
+
+            //textMeshPro.fontColor = new Color32(255, 255, 255, 255);
+        }
+
+
+        void Update()
+        {
+            m_textMeshPro.SetText(label, m_frame % 1000);
+            m_frame += 1 * Time.deltaTime;
         }
 
     }
 }
+-e 
 ```
 
 # File: Assets/TextMesh Pro/Examples & Extras/Scripts/TextConsoleSimulator.cs
@@ -4214,7 +2783,7 @@ namespace TMPro.Examples
         }
 
     }
-}
+}-e 
 ```
 
 # File: Assets/TextMesh Pro/Examples & Extras/Scripts/TextMeshProFloatingText.cs
@@ -4442,713 +3011,7 @@ namespace TMPro.Examples
         }
     }
 }
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TextMeshSpawner.cs
-```csharp
-using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-    
-    public class TextMeshSpawner : MonoBehaviour
-    {
-
-        public int SpawnType = 0;
-        public int NumberOfNPC = 12;
-
-        public Font TheFont;
-
-        private TextMeshProFloatingText floatingText_Script;
-
-        void Awake()
-        {
-
-        }
-
-        void Start()
-        {
-
-            for (int i = 0; i < NumberOfNPC; i++)
-            {
-                if (SpawnType == 0)
-                {
-                    // TextMesh Pro Implementation     
-                    //go.transform.localScale = new Vector3(2, 2, 2);
-                    GameObject go = new GameObject(); //"NPC " + i);
-                    go.transform.position = new Vector3(Random.Range(-95f, 95f), 0.5f, Random.Range(-95f, 95f));
-
-                    //go.transform.position = new Vector3(0, 1.01f, 0);
-                    //go.renderer.castShadows = false;
-                    //go.renderer.receiveShadows = false;
-                    //go.transform.rotation = Quaternion.Euler(0, Random.Range(0, 360), 0);
-
-                    TextMeshPro textMeshPro = go.AddComponent<TextMeshPro>();
-                    //textMeshPro.FontAsset = Resources.Load("Fonts & Materials/LiberationSans SDF", typeof(TextMeshProFont)) as TextMeshProFont;
-                    //textMeshPro.anchor = AnchorPositions.Bottom;
-                    textMeshPro.fontSize = 96;
-
-                    textMeshPro.text = "!";
-                    textMeshPro.color = new Color32(255, 255, 0, 255);
-                    //textMeshPro.Text = "!";
-
-
-                    // Spawn Floating Text
-                    floatingText_Script = go.AddComponent<TextMeshProFloatingText>();
-                    floatingText_Script.SpawnType = 0;
-                }
-                else
-                {
-                    // TextMesh Implementation
-                    GameObject go = new GameObject(); //"NPC " + i);
-                    go.transform.position = new Vector3(Random.Range(-95f, 95f), 0.5f, Random.Range(-95f, 95f));
-
-                    //go.transform.position = new Vector3(0, 1.01f, 0);
-
-                    TextMesh textMesh = go.AddComponent<TextMesh>();
-                    textMesh.GetComponent<Renderer>().sharedMaterial = TheFont.material;
-                    textMesh.font = TheFont;
-                    textMesh.anchor = TextAnchor.LowerCenter;
-                    textMesh.fontSize = 96;
-
-                    textMesh.color = new Color32(255, 255, 0, 255);
-                    textMesh.text = "!";
-
-                    // Spawn Floating Text
-                    floatingText_Script = go.AddComponent<TextMeshProFloatingText>();
-                    floatingText_Script.SpawnType = 1;
-                }
-            }
-        }
-
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/VertexColorCycler.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class VertexColorCycler : MonoBehaviour
-    {
-
-        private TMP_Text m_TextComponent;
-
-        void Awake()
-        {
-            m_TextComponent = GetComponent<TMP_Text>();
-        }
-
-
-        void Start()
-        {
-            StartCoroutine(AnimateVertexColors());
-        }
-
-
-        /// <summary>
-        /// Method to animate vertex colors of a TMP Text object.
-        /// </summary>
-        /// <returns></returns>
-        IEnumerator AnimateVertexColors()
-        {
-            // Force the text object to update right away so we can have geometry to modify right from the start.
-            m_TextComponent.ForceMeshUpdate();
-
-            TMP_TextInfo textInfo = m_TextComponent.textInfo;
-            int currentCharacter = 0;
-
-            Color32[] newVertexColors;
-            Color32 c0 = m_TextComponent.color;
-
-            while (true)
-            {
-                int characterCount = textInfo.characterCount;
-
-                // If No Characters then just yield and wait for some text to be added
-                if (characterCount == 0)
-                {
-                    yield return new WaitForSeconds(0.25f);
-                    continue;
-                }
-
-                // Get the index of the material used by the current character.
-                int materialIndex = textInfo.characterInfo[currentCharacter].materialReferenceIndex;
-
-                // Get the vertex colors of the mesh used by this text element (character or sprite).
-                newVertexColors = textInfo.meshInfo[materialIndex].colors32;
-
-                // Get the index of the first vertex used by this text element.
-                int vertexIndex = textInfo.characterInfo[currentCharacter].vertexIndex;
-
-                // Only change the vertex color if the text element is visible.
-                if (textInfo.characterInfo[currentCharacter].isVisible)
-                {
-                    c0 = new Color32((byte)Random.Range(0, 255), (byte)Random.Range(0, 255), (byte)Random.Range(0, 255), 255);
-
-                    newVertexColors[vertexIndex + 0] = c0;
-                    newVertexColors[vertexIndex + 1] = c0;
-                    newVertexColors[vertexIndex + 2] = c0;
-                    newVertexColors[vertexIndex + 3] = c0;
-
-                    // New function which pushes (all) updated vertex data to the appropriate meshes when using either the Mesh Renderer or CanvasRenderer.
-                    m_TextComponent.UpdateVertexData(TMP_VertexDataUpdateFlags.Colors32);
-
-                    // This last process could be done to only update the vertex data that has changed as opposed to all of the vertex data but it would require extra steps and knowing what type of renderer is used.
-                    // These extra steps would be a performance optimization but it is unlikely that such optimization will be necessary.
-                }
-
-                currentCharacter = (currentCharacter + 1) % characterCount;
-
-                yield return new WaitForSeconds(0.05f);
-            }
-        }
-
-    }
-}
-
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/VertexJitter.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class VertexJitter : MonoBehaviour
-    {
-
-        public float AngleMultiplier = 1.0f;
-        public float SpeedMultiplier = 1.0f;
-        public float CurveScale = 1.0f;
-
-        private TMP_Text m_TextComponent;
-        private bool hasTextChanged;
-
-        /// <summary>
-        /// Structure to hold pre-computed animation data.
-        /// </summary>
-        private struct VertexAnim
-        {
-            public float angleRange;
-            public float angle;
-            public float speed;
-        }
-
-        void Awake()
-        {
-            m_TextComponent = GetComponent<TMP_Text>();
-        }
-
-        void OnEnable()
-        {
-            // Subscribe to event fired when text object has been regenerated.
-            TMPro_EventManager.TEXT_CHANGED_EVENT.Add(ON_TEXT_CHANGED);
-        }
-
-        void OnDisable()
-        {
-            TMPro_EventManager.TEXT_CHANGED_EVENT.Remove(ON_TEXT_CHANGED);
-        }
-
-
-        void Start()
-        {
-            StartCoroutine(AnimateVertexColors());
-        }
-
-
-        void ON_TEXT_CHANGED(Object obj)
-        {
-            if (obj == m_TextComponent)
-                hasTextChanged = true;
-        }
-
-        /// <summary>
-        /// Method to animate vertex colors of a TMP Text object.
-        /// </summary>
-        /// <returns></returns>
-        IEnumerator AnimateVertexColors()
-        {
-
-            // We force an update of the text object since it would only be updated at the end of the frame. Ie. before this code is executed on the first frame.
-            // Alternatively, we could yield and wait until the end of the frame when the text object will be generated.
-            m_TextComponent.ForceMeshUpdate();
-
-            TMP_TextInfo textInfo = m_TextComponent.textInfo;
-
-            Matrix4x4 matrix;
-
-            int loopCount = 0;
-            hasTextChanged = true;
-
-            // Create an Array which contains pre-computed Angle Ranges and Speeds for a bunch of characters.
-            VertexAnim[] vertexAnim = new VertexAnim[1024];
-            for (int i = 0; i < 1024; i++)
-            {
-                vertexAnim[i].angleRange = Random.Range(10f, 25f);
-                vertexAnim[i].speed = Random.Range(1f, 3f);
-            }
-
-            // Cache the vertex data of the text object as the Jitter FX is applied to the original position of the characters.
-            TMP_MeshInfo[] cachedMeshInfo = textInfo.CopyMeshInfoVertexData();
-
-            while (true)
-            {
-                // Get new copy of vertex data if the text has changed.
-                if (hasTextChanged)
-                {
-                    // Update the copy of the vertex data for the text object.
-                    cachedMeshInfo = textInfo.CopyMeshInfoVertexData();
-
-                    hasTextChanged = false;
-                }
-
-                int characterCount = textInfo.characterCount;
-
-                // If No Characters then just yield and wait for some text to be added
-                if (characterCount == 0)
-                {
-                    yield return new WaitForSeconds(0.25f);
-                    continue;
-                }
-
-
-                for (int i = 0; i < characterCount; i++)
-                {
-                    TMP_CharacterInfo charInfo = textInfo.characterInfo[i];
-
-                    // Skip characters that are not visible and thus have no geometry to manipulate.
-                    if (!charInfo.isVisible)
-                        continue;
-
-                    // Retrieve the pre-computed animation data for the given character.
-                    VertexAnim vertAnim = vertexAnim[i];
-
-                    // Get the index of the material used by the current character.
-                    int materialIndex = textInfo.characterInfo[i].materialReferenceIndex;
-
-                    // Get the index of the first vertex used by this text element.
-                    int vertexIndex = textInfo.characterInfo[i].vertexIndex;
-
-                    // Get the cached vertices of the mesh used by this text element (character or sprite).
-                    Vector3[] sourceVertices = cachedMeshInfo[materialIndex].vertices;
-
-                    // Determine the center point of each character at the baseline.
-                    //Vector2 charMidBasline = new Vector2((sourceVertices[vertexIndex + 0].x + sourceVertices[vertexIndex + 2].x) / 2, charInfo.baseLine);
-                    // Determine the center point of each character.
-                    Vector2 charMidBasline = (sourceVertices[vertexIndex + 0] + sourceVertices[vertexIndex + 2]) / 2;
-
-                    // Need to translate all 4 vertices of each quad to aligned with middle of character / baseline.
-                    // This is needed so the matrix TRS is applied at the origin for each character.
-                    Vector3 offset = charMidBasline;
-
-                    Vector3[] destinationVertices = textInfo.meshInfo[materialIndex].vertices;
-
-                    destinationVertices[vertexIndex + 0] = sourceVertices[vertexIndex + 0] - offset;
-                    destinationVertices[vertexIndex + 1] = sourceVertices[vertexIndex + 1] - offset;
-                    destinationVertices[vertexIndex + 2] = sourceVertices[vertexIndex + 2] - offset;
-                    destinationVertices[vertexIndex + 3] = sourceVertices[vertexIndex + 3] - offset;
-
-                    vertAnim.angle = Mathf.SmoothStep(-vertAnim.angleRange, vertAnim.angleRange, Mathf.PingPong(loopCount / 25f * vertAnim.speed, 1f));
-                    Vector3 jitterOffset = new Vector3(Random.Range(-.25f, .25f), Random.Range(-.25f, .25f), 0);
-
-                    matrix = Matrix4x4.TRS(jitterOffset * CurveScale, Quaternion.Euler(0, 0, Random.Range(-5f, 5f) * AngleMultiplier), Vector3.one);
-
-                    destinationVertices[vertexIndex + 0] = matrix.MultiplyPoint3x4(destinationVertices[vertexIndex + 0]);
-                    destinationVertices[vertexIndex + 1] = matrix.MultiplyPoint3x4(destinationVertices[vertexIndex + 1]);
-                    destinationVertices[vertexIndex + 2] = matrix.MultiplyPoint3x4(destinationVertices[vertexIndex + 2]);
-                    destinationVertices[vertexIndex + 3] = matrix.MultiplyPoint3x4(destinationVertices[vertexIndex + 3]);
-
-                    destinationVertices[vertexIndex + 0] += offset;
-                    destinationVertices[vertexIndex + 1] += offset;
-                    destinationVertices[vertexIndex + 2] += offset;
-                    destinationVertices[vertexIndex + 3] += offset;
-
-                    vertexAnim[i] = vertAnim;
-                }
-
-                // Push changes into meshes
-                for (int i = 0; i < textInfo.meshInfo.Length; i++)
-                {
-                    textInfo.meshInfo[i].mesh.vertices = textInfo.meshInfo[i].vertices;
-                    m_TextComponent.UpdateGeometry(textInfo.meshInfo[i].mesh, i);
-                }
-
-                loopCount += 1;
-
-                yield return new WaitForSeconds(0.1f);
-            }
-        }
-
-    }
-}
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/VertexShakeA.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class VertexShakeA : MonoBehaviour
-    {
-
-        public float AngleMultiplier = 1.0f;
-        public float SpeedMultiplier = 1.0f;
-        public float ScaleMultiplier = 1.0f;
-        public float RotationMultiplier = 1.0f;
-
-        private TMP_Text m_TextComponent;
-        private bool hasTextChanged;
-
-
-        void Awake()
-        {
-            m_TextComponent = GetComponent<TMP_Text>();
-        }
-
-        void OnEnable()
-        {
-            // Subscribe to event fired when text object has been regenerated.
-            TMPro_EventManager.TEXT_CHANGED_EVENT.Add(ON_TEXT_CHANGED);
-        }
-
-        void OnDisable()
-        {
-            TMPro_EventManager.TEXT_CHANGED_EVENT.Remove(ON_TEXT_CHANGED);
-        }
-
-
-        void Start()
-        {
-            StartCoroutine(AnimateVertexColors());
-        }
-
-
-        void ON_TEXT_CHANGED(Object obj)
-        {
-            if (obj = m_TextComponent)
-                hasTextChanged = true;
-        }
-
-        /// <summary>
-        /// Method to animate vertex colors of a TMP Text object.
-        /// </summary>
-        /// <returns></returns>
-        IEnumerator AnimateVertexColors()
-        {
-
-            // We force an update of the text object since it would only be updated at the end of the frame. Ie. before this code is executed on the first frame.
-            // Alternatively, we could yield and wait until the end of the frame when the text object will be generated.
-            m_TextComponent.ForceMeshUpdate();
-
-            TMP_TextInfo textInfo = m_TextComponent.textInfo;
-
-            Matrix4x4 matrix;
-            Vector3[][] copyOfVertices = new Vector3[0][];
-
-            hasTextChanged = true;
-
-            while (true)
-            {
-                // Allocate new vertices 
-                if (hasTextChanged)
-                {
-                    if (copyOfVertices.Length < textInfo.meshInfo.Length)
-                        copyOfVertices = new Vector3[textInfo.meshInfo.Length][];
-
-                    for (int i = 0; i < textInfo.meshInfo.Length; i++)
-                    {
-                        int length = textInfo.meshInfo[i].vertices.Length;
-                        copyOfVertices[i] = new Vector3[length];
-                    }
-
-                    hasTextChanged = false;
-                }
-
-                int characterCount = textInfo.characterCount;
-
-                // If No Characters then just yield and wait for some text to be added
-                if (characterCount == 0)
-                {
-                    yield return new WaitForSeconds(0.25f);
-                    continue;
-                }
-
-                int lineCount = textInfo.lineCount;
-
-                // Iterate through each line of the text.
-                for (int i = 0; i < lineCount; i++)
-                {
-
-                    int first = textInfo.lineInfo[i].firstCharacterIndex;
-                    int last = textInfo.lineInfo[i].lastCharacterIndex;
-
-                    // Determine the center of each line
-                    Vector3 centerOfLine = (textInfo.characterInfo[first].bottomLeft + textInfo.characterInfo[last].topRight) / 2;
-                    Quaternion rotation = Quaternion.Euler(0, 0, Random.Range(-0.25f, 0.25f) * RotationMultiplier);
-
-                    // Iterate through each character of the line.
-                    for (int j = first; j <= last; j++)
-                    {
-                        // Skip characters that are not visible and thus have no geometry to manipulate.
-                        if (!textInfo.characterInfo[j].isVisible)
-                            continue;
-
-                        // Get the index of the material used by the current character.
-                        int materialIndex = textInfo.characterInfo[j].materialReferenceIndex;
-
-                        // Get the index of the first vertex used by this text element.
-                        int vertexIndex = textInfo.characterInfo[j].vertexIndex;
-
-                        // Get the vertices of the mesh used by this text element (character or sprite).
-                        Vector3[] sourceVertices = textInfo.meshInfo[materialIndex].vertices;
-
-                        // Need to translate all 4 vertices of each quad to aligned with center of character.
-                        // This is needed so the matrix TRS is applied at the origin for each character.
-                        copyOfVertices[materialIndex][vertexIndex + 0] = sourceVertices[vertexIndex + 0] - centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 1] = sourceVertices[vertexIndex + 1] - centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 2] = sourceVertices[vertexIndex + 2] - centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 3] = sourceVertices[vertexIndex + 3] - centerOfLine;
-
-                        // Determine the random scale change for each character.
-                        float randomScale = Random.Range(0.995f - 0.001f * ScaleMultiplier, 1.005f + 0.001f * ScaleMultiplier);
-
-                        // Setup the matrix rotation.
-                        matrix = Matrix4x4.TRS(Vector3.one, rotation, Vector3.one * randomScale);
-
-                        // Apply the matrix TRS to the individual characters relative to the center of the current line.
-                        copyOfVertices[materialIndex][vertexIndex + 0] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 0]);
-                        copyOfVertices[materialIndex][vertexIndex + 1] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 1]);
-                        copyOfVertices[materialIndex][vertexIndex + 2] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 2]);
-                        copyOfVertices[materialIndex][vertexIndex + 3] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 3]);
-
-                        // Revert the translation change.
-                        copyOfVertices[materialIndex][vertexIndex + 0] += centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 1] += centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 2] += centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 3] += centerOfLine;
-                    }
-                }
-
-                // Push changes into meshes
-                for (int i = 0; i < textInfo.meshInfo.Length; i++)
-                {
-                    textInfo.meshInfo[i].mesh.vertices = copyOfVertices[i];
-                    m_TextComponent.UpdateGeometry(textInfo.meshInfo[i].mesh, i);
-                }
-
-                yield return new WaitForSeconds(0.1f);
-            }
-        }
-
-    }
-}
-```
-
-# File: Assets/TextMesh Pro/Examples & Extras/Scripts/VertexShakeB.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-
-namespace TMPro.Examples
-{
-
-    public class VertexShakeB : MonoBehaviour
-    {
-
-        public float AngleMultiplier = 1.0f;
-        public float SpeedMultiplier = 1.0f;
-        public float CurveScale = 1.0f;
-
-        private TMP_Text m_TextComponent;
-        private bool hasTextChanged;
-
-
-        void Awake()
-        {
-            m_TextComponent = GetComponent<TMP_Text>();
-        }
-
-        void OnEnable()
-        {
-            // Subscribe to event fired when text object has been regenerated.
-            TMPro_EventManager.TEXT_CHANGED_EVENT.Add(ON_TEXT_CHANGED);
-        }
-
-        void OnDisable()
-        {
-            TMPro_EventManager.TEXT_CHANGED_EVENT.Remove(ON_TEXT_CHANGED);
-        }
-
-
-        void Start()
-        {
-            StartCoroutine(AnimateVertexColors());
-        }
-
-
-        void ON_TEXT_CHANGED(Object obj)
-        {
-            if (obj = m_TextComponent)
-                hasTextChanged = true;
-        }
-
-        /// <summary>
-        /// Method to animate vertex colors of a TMP Text object.
-        /// </summary>
-        /// <returns></returns>
-        IEnumerator AnimateVertexColors()
-        {
-
-            // We force an update of the text object since it would only be updated at the end of the frame. Ie. before this code is executed on the first frame.
-            // Alternatively, we could yield and wait until the end of the frame when the text object will be generated.
-            m_TextComponent.ForceMeshUpdate();
-
-            TMP_TextInfo textInfo = m_TextComponent.textInfo;
-
-            Matrix4x4 matrix;
-            Vector3[][] copyOfVertices = new Vector3[0][];
-
-            hasTextChanged = true;
-
-            while (true)
-            {
-                // Allocate new vertices 
-                if (hasTextChanged)
-                {
-                    if (copyOfVertices.Length < textInfo.meshInfo.Length)
-                        copyOfVertices = new Vector3[textInfo.meshInfo.Length][];
-
-                    for (int i = 0; i < textInfo.meshInfo.Length; i++)
-                    {
-                        int length = textInfo.meshInfo[i].vertices.Length;
-                        copyOfVertices[i] = new Vector3[length];
-                    }
-
-                    hasTextChanged = false;
-                }
-
-                int characterCount = textInfo.characterCount;
-
-                // If No Characters then just yield and wait for some text to be added
-                if (characterCount == 0)
-                {
-                    yield return new WaitForSeconds(0.25f);
-                    continue;
-                }
-
-                int lineCount = textInfo.lineCount;
-
-                // Iterate through each line of the text.
-                for (int i = 0; i < lineCount; i++)
-                {
-
-                    int first = textInfo.lineInfo[i].firstCharacterIndex;
-                    int last = textInfo.lineInfo[i].lastCharacterIndex;
-
-                    // Determine the center of each line
-                    Vector3 centerOfLine = (textInfo.characterInfo[first].bottomLeft + textInfo.characterInfo[last].topRight) / 2;
-                    Quaternion rotation = Quaternion.Euler(0, 0, Random.Range(-0.25f, 0.25f));
-
-                    // Iterate through each character of the line.
-                    for (int j = first; j <= last; j++)
-                    {
-                        // Skip characters that are not visible and thus have no geometry to manipulate.
-                        if (!textInfo.characterInfo[j].isVisible)
-                            continue;
-
-                        // Get the index of the material used by the current character.
-                        int materialIndex = textInfo.characterInfo[j].materialReferenceIndex;
-
-                        // Get the index of the first vertex used by this text element.
-                        int vertexIndex = textInfo.characterInfo[j].vertexIndex;
-
-                        // Get the vertices of the mesh used by this text element (character or sprite).
-                        Vector3[] sourceVertices = textInfo.meshInfo[materialIndex].vertices;
-
-                        // Determine the center point of each character at the baseline.
-                        Vector3 charCenter = (sourceVertices[vertexIndex + 0] + sourceVertices[vertexIndex + 2]) / 2;
-
-                        // Need to translate all 4 vertices of each quad to aligned with center of character.
-                        // This is needed so the matrix TRS is applied at the origin for each character.
-                        copyOfVertices[materialIndex][vertexIndex + 0] = sourceVertices[vertexIndex + 0] - charCenter;
-                        copyOfVertices[materialIndex][vertexIndex + 1] = sourceVertices[vertexIndex + 1] - charCenter;
-                        copyOfVertices[materialIndex][vertexIndex + 2] = sourceVertices[vertexIndex + 2] - charCenter;
-                        copyOfVertices[materialIndex][vertexIndex + 3] = sourceVertices[vertexIndex + 3] - charCenter;
-
-                        // Determine the random scale change for each character.
-                        float randomScale = Random.Range(0.95f, 1.05f);
-
-                        // Setup the matrix for the scale change.
-                        matrix = Matrix4x4.TRS(Vector3.one, Quaternion.identity, Vector3.one * randomScale);
-
-                        // Apply the scale change relative to the center of each character.
-                        copyOfVertices[materialIndex][vertexIndex + 0] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 0]);
-                        copyOfVertices[materialIndex][vertexIndex + 1] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 1]);
-                        copyOfVertices[materialIndex][vertexIndex + 2] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 2]);
-                        copyOfVertices[materialIndex][vertexIndex + 3] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 3]);
-
-                        // Revert the translation change.
-                        copyOfVertices[materialIndex][vertexIndex + 0] += charCenter;
-                        copyOfVertices[materialIndex][vertexIndex + 1] += charCenter;
-                        copyOfVertices[materialIndex][vertexIndex + 2] += charCenter;
-                        copyOfVertices[materialIndex][vertexIndex + 3] += charCenter;
-
-                        // Need to translate all 4 vertices of each quad to aligned with the center of the line.
-                        // This is needed so the matrix TRS is applied from the center of the line.
-                        copyOfVertices[materialIndex][vertexIndex + 0] -= centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 1] -= centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 2] -= centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 3] -= centerOfLine;
-
-                        // Setup the matrix rotation.
-                        matrix = Matrix4x4.TRS(Vector3.one, rotation, Vector3.one);
-
-                        // Apply the matrix TRS to the individual characters relative to the center of the current line.
-                        copyOfVertices[materialIndex][vertexIndex + 0] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 0]);
-                        copyOfVertices[materialIndex][vertexIndex + 1] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 1]);
-                        copyOfVertices[materialIndex][vertexIndex + 2] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 2]);
-                        copyOfVertices[materialIndex][vertexIndex + 3] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 3]);
-
-                        // Revert the translation change.
-                        copyOfVertices[materialIndex][vertexIndex + 0] += centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 1] += centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 2] += centerOfLine;
-                        copyOfVertices[materialIndex][vertexIndex + 3] += centerOfLine;
-                    }
-                }
-
-                // Push changes into meshes
-                for (int i = 0; i < textInfo.meshInfo.Length; i++)
-                {
-                    textInfo.meshInfo[i].mesh.vertices = copyOfVertices[i];
-                    m_TextComponent.UpdateGeometry(textInfo.meshInfo[i].mesh, i);
-                }
-
-                yield return new WaitForSeconds(0.1f);
-            }
-        }
-
-    }
-}
+-e 
 ```
 
 # File: Assets/TextMesh Pro/Examples & Extras/Scripts/VertexZoom.cs
@@ -5344,7 +3207,956 @@ namespace TMPro.Examples
         }
 
     }
+}-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/ShaderPropAnimator.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+    
+    public class ShaderPropAnimator : MonoBehaviour
+    {
+
+        private Renderer m_Renderer;
+        private Material m_Material;
+
+        public AnimationCurve GlowCurve;
+
+        public float m_frame;
+
+        void Awake()
+        {
+            // Cache a reference to object's renderer
+            m_Renderer = GetComponent<Renderer>();
+
+            // Cache a reference to object's material and create an instance by doing so.
+            m_Material = m_Renderer.material;
+        }
+
+        void Start()
+        {
+            StartCoroutine(AnimateProperties());
+        }
+
+        IEnumerator AnimateProperties()
+        {
+            //float lightAngle;
+            float glowPower;
+            m_frame = Random.Range(0f, 1f);
+
+            while (true)
+            {
+                //lightAngle = (m_Material.GetFloat(ShaderPropertyIDs.ID_LightAngle) + Time.deltaTime) % 6.2831853f;
+                //m_Material.SetFloat(ShaderPropertyIDs.ID_LightAngle, lightAngle);
+
+                glowPower = GlowCurve.Evaluate(m_frame);
+                m_Material.SetFloat(ShaderUtilities.ID_GlowPower, glowPower);
+
+                m_frame += Time.deltaTime * Random.Range(0.2f, 0.3f);
+                yield return new WaitForEndOfFrame();
+            }
+        }
+    }
 }
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/ChatController.cs
+```csharp
+﻿using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+public class ChatController : MonoBehaviour {
+
+
+    public TMP_InputField ChatInputField;
+
+    public TMP_Text ChatDisplayOutput;
+
+    public Scrollbar ChatScrollbar;
+
+    void OnEnable()
+    {
+        ChatInputField.onSubmit.AddListener(AddToChatOutput);
+    }
+
+    void OnDisable()
+    {
+        ChatInputField.onSubmit.RemoveListener(AddToChatOutput);
+    }
+
+
+    void AddToChatOutput(string newText)
+    {
+        // Clear Input Field
+        ChatInputField.text = string.Empty;
+
+        var timeNow = System.DateTime.Now;
+
+        string formattedInput = "[<#FFFF80>" + timeNow.Hour.ToString("d2") + ":" + timeNow.Minute.ToString("d2") + ":" + timeNow.Second.ToString("d2") + "</color>] " + newText;
+
+        if (ChatDisplayOutput != null)
+        {
+            // No special formatting for first entry
+            // Add line feed before each subsequent entries
+            if (ChatDisplayOutput.text == string.Empty)
+                ChatDisplayOutput.text = formattedInput;
+            else
+                ChatDisplayOutput.text += "\n" + formattedInput;
+        }
+
+        // Keep Chat input field active
+        ChatInputField.ActivateInputField();
+
+        // Set the scrollbar to the bottom when next text is submitted.
+        ChatScrollbar.value = 0;
+    }
+
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TeleType.cs
+```csharp
+using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class TeleType : MonoBehaviour
+    {
+
+
+        //[Range(0, 100)]
+        //public int RevealSpeed = 50;
+
+        private string label01 = "Example <sprite=2> of using <sprite=7> <#ffa000>Graphics Inline</color> <sprite=5> with Text in <font=\"Bangers SDF\" material=\"Bangers SDF - Drop Shadow\">TextMesh<#40a0ff>Pro</color></font><sprite=0> and Unity<sprite=1>";
+        private string label02 = "Example <sprite=2> of using <sprite=7> <#ffa000>Graphics Inline</color> <sprite=5> with Text in <font=\"Bangers SDF\" material=\"Bangers SDF - Drop Shadow\">TextMesh<#40a0ff>Pro</color></font><sprite=0> and Unity<sprite=2>";
+
+
+        private TMP_Text m_textMeshPro;
+
+
+        void Awake()
+        {
+            // Get Reference to TextMeshPro Component
+            m_textMeshPro = GetComponent<TMP_Text>();
+            m_textMeshPro.text = label01;
+            m_textMeshPro.textWrappingMode = TextWrappingModes.Normal;
+            m_textMeshPro.alignment = TextAlignmentOptions.Top;
+
+
+
+            //if (GetComponentInParent(typeof(Canvas)) as Canvas == null)
+            //{
+            //    GameObject canvas = new GameObject("Canvas", typeof(Canvas));
+            //    gameObject.transform.SetParent(canvas.transform);
+            //    canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+
+            //    // Set RectTransform Size
+            //    gameObject.GetComponent<RectTransform>().sizeDelta = new Vector2(500, 300);
+            //    m_textMeshPro.fontSize = 48;
+            //}
+
+
+        }
+
+
+        IEnumerator Start()
+        {
+
+            // Force and update of the mesh to get valid information.
+            m_textMeshPro.ForceMeshUpdate();
+
+
+            int totalVisibleCharacters = m_textMeshPro.textInfo.characterCount; // Get # of Visible Character in text object
+            int counter = 0;
+            int visibleCount = 0;
+
+            while (true)
+            {
+                visibleCount = counter % (totalVisibleCharacters + 1);
+
+                m_textMeshPro.maxVisibleCharacters = visibleCount; // How many characters should TextMeshPro display?
+
+                // Once the last character has been revealed, wait 1.0 second and start over.
+                if (visibleCount >= totalVisibleCharacters)
+                {
+                    yield return new WaitForSeconds(1.0f);
+                    m_textMeshPro.text = label02;
+                    yield return new WaitForSeconds(1.0f);
+                    m_textMeshPro.text = label01;
+                    yield return new WaitForSeconds(1.0f);
+                }
+
+                counter += 1;
+
+                yield return new WaitForSeconds(0.05f);
+            }
+
+            //Debug.Log("Done revealing the text.");
+        }
+
+    }
+}-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_DigitValidator.cs
+```csharp
+﻿using UnityEngine;
+using System;
+
+
+namespace TMPro
+{
+    /// <summary>
+    /// EXample of a Custom Character Input Validator to only allow digits from 0 to 9.
+    /// </summary>
+    [Serializable]
+    //[CreateAssetMenu(fileName = "InputValidator - Digits.asset", menuName = "TextMeshPro/Input Validators/Digits", order = 100)]
+    public class TMP_DigitValidator : TMP_InputValidator
+    {
+        // Custom text input validation function
+        public override char Validate(ref string text, ref int pos, char ch)
+        {
+            if (ch >= '0' && ch <= '9')
+            {
+                text += ch;
+                pos += 1;
+                return ch;
+            }
+
+            return (char)0;
+        }
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_TextEventCheck.cs
+```csharp
+﻿using UnityEngine;
+
+
+namespace TMPro.Examples
+{
+    public class TMP_TextEventCheck : MonoBehaviour
+    {
+
+        public TMP_TextEventHandler TextEventHandler;
+
+        private TMP_Text m_TextComponent;
+
+        void OnEnable()
+        {
+            if (TextEventHandler != null)
+            {
+                // Get a reference to the text component
+                m_TextComponent = TextEventHandler.GetComponent<TMP_Text>();
+                
+                TextEventHandler.onCharacterSelection.AddListener(OnCharacterSelection);
+                TextEventHandler.onSpriteSelection.AddListener(OnSpriteSelection);
+                TextEventHandler.onWordSelection.AddListener(OnWordSelection);
+                TextEventHandler.onLineSelection.AddListener(OnLineSelection);
+                TextEventHandler.onLinkSelection.AddListener(OnLinkSelection);
+            }
+        }
+
+
+        void OnDisable()
+        {
+            if (TextEventHandler != null)
+            {
+                TextEventHandler.onCharacterSelection.RemoveListener(OnCharacterSelection);
+                TextEventHandler.onSpriteSelection.RemoveListener(OnSpriteSelection);
+                TextEventHandler.onWordSelection.RemoveListener(OnWordSelection);
+                TextEventHandler.onLineSelection.RemoveListener(OnLineSelection);
+                TextEventHandler.onLinkSelection.RemoveListener(OnLinkSelection);
+            }
+        }
+
+
+        void OnCharacterSelection(char c, int index)
+        {
+            Debug.Log("Character [" + c + "] at Index: " + index + " has been selected.");
+        }
+
+        void OnSpriteSelection(char c, int index)
+        {
+            Debug.Log("Sprite [" + c + "] at Index: " + index + " has been selected.");
+        }
+
+        void OnWordSelection(string word, int firstCharacterIndex, int length)
+        {
+            Debug.Log("Word [" + word + "] with first character index of " + firstCharacterIndex + " and length of " + length + " has been selected.");
+        }
+
+        void OnLineSelection(string lineText, int firstCharacterIndex, int length)
+        {
+            Debug.Log("Line [" + lineText + "] with first character index of " + firstCharacterIndex + " and length of " + length + " has been selected.");
+        }
+
+        void OnLinkSelection(string linkID, string linkText, int linkIndex)
+        {
+            if (m_TextComponent != null)
+            {
+                TMP_LinkInfo linkInfo = m_TextComponent.textInfo.linkInfo[linkIndex];
+            }
+            
+            Debug.Log("Link Index: " + linkIndex + " with ID [" + linkID + "] and Text \"" + linkText + "\" has been selected.");
+        }
+
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_UiFrameRateCounter.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class TMP_UiFrameRateCounter : MonoBehaviour
+    {
+        public float UpdateInterval = 5.0f;
+        private float m_LastInterval = 0;
+        private int m_Frames = 0;
+
+        public enum FpsCounterAnchorPositions { TopLeft, BottomLeft, TopRight, BottomRight };
+
+        public FpsCounterAnchorPositions AnchorPosition = FpsCounterAnchorPositions.TopRight;
+
+        private string htmlColorTag;
+        private const string fpsLabel = "{0:2}</color> <#8080ff>FPS \n<#FF8000>{1:2} <#8080ff>MS";
+
+        private TextMeshProUGUI m_TextMeshPro;
+        private RectTransform m_frameCounter_transform;
+
+        private FpsCounterAnchorPositions last_AnchorPosition;
+
+        void Awake()
+        {
+            if (!enabled)
+                return;
+
+            Application.targetFrameRate = 1000;
+
+            GameObject frameCounter = new GameObject("Frame Counter");
+            m_frameCounter_transform = frameCounter.AddComponent<RectTransform>();
+
+            m_frameCounter_transform.SetParent(this.transform, false);
+
+            m_TextMeshPro = frameCounter.AddComponent<TextMeshProUGUI>();
+            m_TextMeshPro.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+            m_TextMeshPro.fontSharedMaterial = Resources.Load<Material>("Fonts & Materials/LiberationSans SDF - Overlay");
+
+            m_TextMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
+            m_TextMeshPro.fontSize = 36;
+
+            m_TextMeshPro.isOverlay = true;
+
+            Set_FrameCounter_Position(AnchorPosition);
+            last_AnchorPosition = AnchorPosition;
+        }
+
+
+        void Start()
+        {
+            m_LastInterval = Time.realtimeSinceStartup;
+            m_Frames = 0;
+        }
+
+
+        void Update()
+        {
+            if (AnchorPosition != last_AnchorPosition)
+                Set_FrameCounter_Position(AnchorPosition);
+
+            last_AnchorPosition = AnchorPosition;
+
+            m_Frames += 1;
+            float timeNow = Time.realtimeSinceStartup;
+
+            if (timeNow > m_LastInterval + UpdateInterval)
+            {
+                // display two fractional digits (f2 format)
+                float fps = m_Frames / (timeNow - m_LastInterval);
+                float ms = 1000.0f / Mathf.Max(fps, 0.00001f);
+
+                if (fps < 30)
+                    htmlColorTag = "<color=yellow>";
+                else if (fps < 10)
+                    htmlColorTag = "<color=red>";
+                else
+                    htmlColorTag = "<color=green>";
+
+                m_TextMeshPro.SetText(htmlColorTag + fpsLabel, fps, ms);
+
+                m_Frames = 0;
+                m_LastInterval = timeNow;
+            }
+        }
+
+
+        void Set_FrameCounter_Position(FpsCounterAnchorPositions anchor_position)
+        {
+            switch (anchor_position)
+            {
+                case FpsCounterAnchorPositions.TopLeft:
+                    m_TextMeshPro.alignment = TextAlignmentOptions.TopLeft;
+                    m_frameCounter_transform.pivot = new Vector2(0, 1);
+                    m_frameCounter_transform.anchorMin = new Vector2(0.01f, 0.99f);
+                    m_frameCounter_transform.anchorMax = new Vector2(0.01f, 0.99f);
+                    m_frameCounter_transform.anchoredPosition = new Vector2(0, 1);
+                    break;
+                case FpsCounterAnchorPositions.BottomLeft:
+                    m_TextMeshPro.alignment = TextAlignmentOptions.BottomLeft;
+                    m_frameCounter_transform.pivot = new Vector2(0, 0);
+                    m_frameCounter_transform.anchorMin = new Vector2(0.01f, 0.01f);
+                    m_frameCounter_transform.anchorMax = new Vector2(0.01f, 0.01f);
+                    m_frameCounter_transform.anchoredPosition = new Vector2(0, 0);
+                    break;
+                case FpsCounterAnchorPositions.TopRight:
+                    m_TextMeshPro.alignment = TextAlignmentOptions.TopRight;
+                    m_frameCounter_transform.pivot = new Vector2(1, 1);
+                    m_frameCounter_transform.anchorMin = new Vector2(0.99f, 0.99f);
+                    m_frameCounter_transform.anchorMax = new Vector2(0.99f, 0.99f);
+                    m_frameCounter_transform.anchoredPosition = new Vector2(1, 1);
+                    break;
+                case FpsCounterAnchorPositions.BottomRight:
+                    m_TextMeshPro.alignment = TextAlignmentOptions.BottomRight;
+                    m_frameCounter_transform.pivot = new Vector2(1, 0);
+                    m_frameCounter_transform.anchorMin = new Vector2(0.99f, 0.01f);
+                    m_frameCounter_transform.anchorMax = new Vector2(0.99f, 0.01f);
+                    m_frameCounter_transform.anchoredPosition = new Vector2(1, 0);
+                    break;
+            }
+        }
+    }
+}-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_PhoneNumberValidator.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+using System;
+
+namespace TMPro
+{
+    /// <summary>
+    /// Example of a Custom Character Input Validator to only allow phone number in the (800) 555-1212 format.
+    /// </summary>
+    [Serializable]
+    //[CreateAssetMenu(fileName = "InputValidator - Phone Numbers.asset", menuName = "TextMeshPro/Input Validators/Phone Numbers")]
+    public class TMP_PhoneNumberValidator : TMP_InputValidator
+    {
+        // Custom text input validation function
+        public override char Validate(ref string text, ref int pos, char ch)
+        {
+            Debug.Log("Trying to validate...");
+            
+            // Return unless the character is a valid digit
+            if (ch < '0' && ch > '9') return (char)0;
+
+            int length = text.Length;
+
+            // Enforce Phone Number format for every character input.
+            for (int i = 0; i < length + 1; i++)
+            {
+                switch (i)
+                {
+                    case 0:
+                        if (i == length)
+                            text = "(" + ch;
+                        pos = 2;
+                        break;
+                    case 1:
+                        if (i == length)
+                            text += ch;
+                        pos = 2;
+                        break;
+                    case 2:
+                        if (i == length)
+                            text += ch;
+                        pos = 3;
+                        break;
+                    case 3:
+                        if (i == length)
+                            text += ch + ") ";
+                        pos = 6;
+                        break;
+                    case 4:
+                        if (i == length)
+                            text += ") " + ch;
+                        pos = 7;
+                        break;
+                    case 5:
+                        if (i == length)
+                            text += " " + ch;
+                        pos = 7;
+                        break;
+                    case 6:
+                        if (i == length)
+                            text += ch;
+                        pos = 7;
+                        break;
+                    case 7:
+                        if (i == length)
+                            text += ch;
+                        pos = 8;
+                        break;
+                    case 8:
+                        if (i == length)
+                            text += ch + "-";
+                        pos = 10;
+                        break;
+                    case 9:
+                        if (i == length)
+                            text += "-" + ch;
+                        pos = 11;
+                        break;
+                    case 10:
+                        if (i == length)
+                            text += ch;
+                        pos = 11;
+                        break;
+                    case 11:
+                        if (i == length)
+                            text += ch;
+                        pos = 12;
+                        break;
+                    case 12:
+                        if (i == length)
+                            text += ch;
+                        pos = 13;
+                        break;
+                    case 13:
+                        if (i == length)
+                            text += ch;
+                        pos = 14;
+                        break;
+                }
+            }
+
+            return ch;
+        }
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_FrameRateCounter.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class TMP_FrameRateCounter : MonoBehaviour
+    {
+        public float UpdateInterval = 5.0f;
+        private float m_LastInterval = 0;
+        private int m_Frames = 0;
+
+        public enum FpsCounterAnchorPositions { TopLeft, BottomLeft, TopRight, BottomRight };
+
+        public FpsCounterAnchorPositions AnchorPosition = FpsCounterAnchorPositions.TopRight;
+
+        private string htmlColorTag;
+        private const string fpsLabel = "{0:2}</color> <#8080ff>FPS \n<#FF8000>{1:2} <#8080ff>MS";
+
+        private TextMeshPro m_TextMeshPro;
+        private Transform m_frameCounter_transform;
+        private Camera m_camera;
+
+        private FpsCounterAnchorPositions last_AnchorPosition;
+
+        void Awake()
+        {
+            if (!enabled)
+                return;
+
+            m_camera = Camera.main;
+            Application.targetFrameRate = 9999;
+
+            GameObject frameCounter = new GameObject("Frame Counter");
+
+            m_TextMeshPro = frameCounter.AddComponent<TextMeshPro>();
+            m_TextMeshPro.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+            m_TextMeshPro.fontSharedMaterial = Resources.Load<Material>("Fonts & Materials/LiberationSans SDF - Overlay");
+
+
+            m_frameCounter_transform = frameCounter.transform;
+            m_frameCounter_transform.SetParent(m_camera.transform);
+            m_frameCounter_transform.localRotation = Quaternion.identity;
+
+            m_TextMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
+            m_TextMeshPro.fontSize = 24;
+            //m_TextMeshPro.FontColor = new Color32(255, 255, 255, 128);
+            //m_TextMeshPro.edgeWidth = .15f;
+            //m_TextMeshPro.isOverlay = true;
+
+            //m_TextMeshPro.FaceColor = new Color32(255, 128, 0, 0);
+            //m_TextMeshPro.EdgeColor = new Color32(0, 255, 0, 255);
+            //m_TextMeshPro.FontMaterial.renderQueue = 4000;
+
+            //m_TextMeshPro.CreateSoftShadowClone(new Vector2(1f, -1f));
+
+            Set_FrameCounter_Position(AnchorPosition);
+            last_AnchorPosition = AnchorPosition;
+
+
+        }
+
+        void Start()
+        {
+            m_LastInterval = Time.realtimeSinceStartup;
+            m_Frames = 0;
+        }
+
+        void Update()
+        {
+            if (AnchorPosition != last_AnchorPosition)
+                Set_FrameCounter_Position(AnchorPosition);
+
+            last_AnchorPosition = AnchorPosition;
+
+            m_Frames += 1;
+            float timeNow = Time.realtimeSinceStartup;
+
+            if (timeNow > m_LastInterval + UpdateInterval)
+            {
+                // display two fractional digits (f2 format)
+                float fps = m_Frames / (timeNow - m_LastInterval);
+                float ms = 1000.0f / Mathf.Max(fps, 0.00001f);
+
+                if (fps < 30)
+                    htmlColorTag = "<color=yellow>";
+                else if (fps < 10)
+                    htmlColorTag = "<color=red>";
+                else
+                    htmlColorTag = "<color=green>";
+
+                //string format = System.String.Format(htmlColorTag + "{0:F2} </color>FPS \n{1:F2} <#8080ff>MS",fps, ms);
+                //m_TextMeshPro.text = format;
+
+                m_TextMeshPro.SetText(htmlColorTag + fpsLabel, fps, ms);
+
+                m_Frames = 0;
+                m_LastInterval = timeNow;
+            }
+        }
+
+
+        void Set_FrameCounter_Position(FpsCounterAnchorPositions anchor_position)
+        {
+            //Debug.Log("Changing frame counter anchor position.");
+            m_TextMeshPro.margin = new Vector4(1f, 1f, 1f, 1f);
+
+            switch (anchor_position)
+            {
+                case FpsCounterAnchorPositions.TopLeft:
+                    m_TextMeshPro.alignment = TextAlignmentOptions.TopLeft;
+                    m_TextMeshPro.rectTransform.pivot = new Vector2(0, 1);
+                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(0, 1, 100.0f));
+                    break;
+                case FpsCounterAnchorPositions.BottomLeft:
+                    m_TextMeshPro.alignment = TextAlignmentOptions.BottomLeft;
+                    m_TextMeshPro.rectTransform.pivot = new Vector2(0, 0);
+                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(0, 0, 100.0f));
+                    break;
+                case FpsCounterAnchorPositions.TopRight:
+                    m_TextMeshPro.alignment = TextAlignmentOptions.TopRight;
+                    m_TextMeshPro.rectTransform.pivot = new Vector2(1, 1);
+                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(1, 1, 100.0f));
+                    break;
+                case FpsCounterAnchorPositions.BottomRight:
+                    m_TextMeshPro.alignment = TextAlignmentOptions.BottomRight;
+                    m_TextMeshPro.rectTransform.pivot = new Vector2(1, 0);
+                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(1, 0, 100.0f));
+                    break;
+            }
+        }
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/Benchmark03.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+using UnityEngine.TextCore.LowLevel;
+
+
+namespace TMPro.Examples
+{
+
+    public class Benchmark03 : MonoBehaviour
+    {
+        public enum BenchmarkType { TMP_SDF_MOBILE = 0, TMP_SDF__MOBILE_SSD = 1, TMP_SDF = 2, TMP_BITMAP_MOBILE = 3, TEXTMESH_BITMAP = 4 }
+
+        public int NumberOfSamples = 100;
+        public BenchmarkType Benchmark;
+
+        public Font SourceFont;
+
+
+        void Awake()
+        {
+
+        }
+
+
+        void Start()
+        {
+            TMP_FontAsset fontAsset = null;
+
+            // Create Dynamic Font Asset for the given font file.
+            switch (Benchmark)
+            {
+                case BenchmarkType.TMP_SDF_MOBILE:
+                    fontAsset = TMP_FontAsset.CreateFontAsset(SourceFont, 90, 9, GlyphRenderMode.SDFAA, 256, 256, AtlasPopulationMode.Dynamic);
+                    break;
+                case BenchmarkType.TMP_SDF__MOBILE_SSD:
+                    fontAsset = TMP_FontAsset.CreateFontAsset(SourceFont, 90, 9, GlyphRenderMode.SDFAA, 256, 256, AtlasPopulationMode.Dynamic);
+                    fontAsset.material.shader = Shader.Find("TextMeshPro/Mobile/Distance Field SSD");
+                    break;
+                case BenchmarkType.TMP_SDF:
+                    fontAsset = TMP_FontAsset.CreateFontAsset(SourceFont, 90, 9, GlyphRenderMode.SDFAA, 256, 256, AtlasPopulationMode.Dynamic);
+                    fontAsset.material.shader = Shader.Find("TextMeshPro/Distance Field");
+                    break;
+                case BenchmarkType.TMP_BITMAP_MOBILE:
+                    fontAsset = TMP_FontAsset.CreateFontAsset(SourceFont, 90, 9, GlyphRenderMode.SMOOTH, 256, 256, AtlasPopulationMode.Dynamic);
+                    break;
+            }
+
+            for (int i = 0; i < NumberOfSamples; i++)
+            {
+                switch (Benchmark)
+                {
+                    case BenchmarkType.TMP_SDF_MOBILE:
+                    case BenchmarkType.TMP_SDF__MOBILE_SSD:
+                    case BenchmarkType.TMP_SDF:
+                    case BenchmarkType.TMP_BITMAP_MOBILE:
+                        {
+                            GameObject go = new GameObject();
+                            go.transform.position = new Vector3(0, 1.2f, 0);
+
+                            TextMeshPro textComponent = go.AddComponent<TextMeshPro>();
+                            textComponent.font = fontAsset;
+                            textComponent.fontSize = 128;
+                            textComponent.text = "@";
+                            textComponent.alignment = TextAlignmentOptions.Center;
+                            textComponent.color = new Color32(255, 255, 0, 255);
+
+                            if (Benchmark == BenchmarkType.TMP_BITMAP_MOBILE)
+                                textComponent.fontSize = 132;
+
+                        }
+                        break;
+                    case BenchmarkType.TEXTMESH_BITMAP:
+                        {
+                            GameObject go = new GameObject();
+                            go.transform.position = new Vector3(0, 1.2f, 0);
+
+                            TextMesh textMesh = go.AddComponent<TextMesh>();
+                            textMesh.GetComponent<Renderer>().sharedMaterial = SourceFont.material;
+                            textMesh.font = SourceFont;
+                            textMesh.anchor = TextAnchor.MiddleCenter;
+                            textMesh.fontSize = 130;
+
+                            textMesh.color = new Color32(255, 255, 0, 255);
+                            textMesh.text = "@";
+                        }
+                        break;
+                }
+            }
+        }
+
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/VertexShakeA.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class VertexShakeA : MonoBehaviour
+    {
+
+        public float AngleMultiplier = 1.0f;
+        public float SpeedMultiplier = 1.0f;
+        public float ScaleMultiplier = 1.0f;
+        public float RotationMultiplier = 1.0f;
+
+        private TMP_Text m_TextComponent;
+        private bool hasTextChanged;
+
+
+        void Awake()
+        {
+            m_TextComponent = GetComponent<TMP_Text>();
+        }
+
+        void OnEnable()
+        {
+            // Subscribe to event fired when text object has been regenerated.
+            TMPro_EventManager.TEXT_CHANGED_EVENT.Add(ON_TEXT_CHANGED);
+        }
+
+        void OnDisable()
+        {
+            TMPro_EventManager.TEXT_CHANGED_EVENT.Remove(ON_TEXT_CHANGED);
+        }
+
+
+        void Start()
+        {
+            StartCoroutine(AnimateVertexColors());
+        }
+
+
+        void ON_TEXT_CHANGED(Object obj)
+        {
+            if (obj = m_TextComponent)
+                hasTextChanged = true;
+        }
+
+        /// <summary>
+        /// Method to animate vertex colors of a TMP Text object.
+        /// </summary>
+        /// <returns></returns>
+        IEnumerator AnimateVertexColors()
+        {
+
+            // We force an update of the text object since it would only be updated at the end of the frame. Ie. before this code is executed on the first frame.
+            // Alternatively, we could yield and wait until the end of the frame when the text object will be generated.
+            m_TextComponent.ForceMeshUpdate();
+
+            TMP_TextInfo textInfo = m_TextComponent.textInfo;
+
+            Matrix4x4 matrix;
+            Vector3[][] copyOfVertices = new Vector3[0][];
+
+            hasTextChanged = true;
+
+            while (true)
+            {
+                // Allocate new vertices 
+                if (hasTextChanged)
+                {
+                    if (copyOfVertices.Length < textInfo.meshInfo.Length)
+                        copyOfVertices = new Vector3[textInfo.meshInfo.Length][];
+
+                    for (int i = 0; i < textInfo.meshInfo.Length; i++)
+                    {
+                        int length = textInfo.meshInfo[i].vertices.Length;
+                        copyOfVertices[i] = new Vector3[length];
+                    }
+
+                    hasTextChanged = false;
+                }
+
+                int characterCount = textInfo.characterCount;
+
+                // If No Characters then just yield and wait for some text to be added
+                if (characterCount == 0)
+                {
+                    yield return new WaitForSeconds(0.25f);
+                    continue;
+                }
+
+                int lineCount = textInfo.lineCount;
+
+                // Iterate through each line of the text.
+                for (int i = 0; i < lineCount; i++)
+                {
+
+                    int first = textInfo.lineInfo[i].firstCharacterIndex;
+                    int last = textInfo.lineInfo[i].lastCharacterIndex;
+
+                    // Determine the center of each line
+                    Vector3 centerOfLine = (textInfo.characterInfo[first].bottomLeft + textInfo.characterInfo[last].topRight) / 2;
+                    Quaternion rotation = Quaternion.Euler(0, 0, Random.Range(-0.25f, 0.25f) * RotationMultiplier);
+
+                    // Iterate through each character of the line.
+                    for (int j = first; j <= last; j++)
+                    {
+                        // Skip characters that are not visible and thus have no geometry to manipulate.
+                        if (!textInfo.characterInfo[j].isVisible)
+                            continue;
+
+                        // Get the index of the material used by the current character.
+                        int materialIndex = textInfo.characterInfo[j].materialReferenceIndex;
+
+                        // Get the index of the first vertex used by this text element.
+                        int vertexIndex = textInfo.characterInfo[j].vertexIndex;
+
+                        // Get the vertices of the mesh used by this text element (character or sprite).
+                        Vector3[] sourceVertices = textInfo.meshInfo[materialIndex].vertices;
+
+                        // Need to translate all 4 vertices of each quad to aligned with center of character.
+                        // This is needed so the matrix TRS is applied at the origin for each character.
+                        copyOfVertices[materialIndex][vertexIndex + 0] = sourceVertices[vertexIndex + 0] - centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 1] = sourceVertices[vertexIndex + 1] - centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 2] = sourceVertices[vertexIndex + 2] - centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 3] = sourceVertices[vertexIndex + 3] - centerOfLine;
+
+                        // Determine the random scale change for each character.
+                        float randomScale = Random.Range(0.995f - 0.001f * ScaleMultiplier, 1.005f + 0.001f * ScaleMultiplier);
+
+                        // Setup the matrix rotation.
+                        matrix = Matrix4x4.TRS(Vector3.one, rotation, Vector3.one * randomScale);
+
+                        // Apply the matrix TRS to the individual characters relative to the center of the current line.
+                        copyOfVertices[materialIndex][vertexIndex + 0] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 0]);
+                        copyOfVertices[materialIndex][vertexIndex + 1] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 1]);
+                        copyOfVertices[materialIndex][vertexIndex + 2] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 2]);
+                        copyOfVertices[materialIndex][vertexIndex + 3] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 3]);
+
+                        // Revert the translation change.
+                        copyOfVertices[materialIndex][vertexIndex + 0] += centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 1] += centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 2] += centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 3] += centerOfLine;
+                    }
+                }
+
+                // Push changes into meshes
+                for (int i = 0; i < textInfo.meshInfo.Length; i++)
+                {
+                    textInfo.meshInfo[i].mesh.vertices = copyOfVertices[i];
+                    m_TextComponent.UpdateGeometry(textInfo.meshInfo[i].mesh, i);
+                }
+
+                yield return new WaitForSeconds(0.1f);
+            }
+        }
+
+    }
+}-e 
 ```
 
 # File: Assets/TextMesh Pro/Examples & Extras/Scripts/WarpTextExample.cs
@@ -5493,7 +4305,1738 @@ namespace TMPro.Examples
         }
     }
 }
+-e 
+```
 
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/EnvMapAnimator.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+using TMPro;
+
+public class EnvMapAnimator : MonoBehaviour {
+
+    //private Vector3 TranslationSpeeds;
+    public Vector3 RotationSpeeds;
+    private TMP_Text m_textMeshPro;
+    private Material m_material;
+    
+
+    void Awake()
+    {
+        //Debug.Log("Awake() on Script called.");
+        m_textMeshPro = GetComponent<TMP_Text>();
+        m_material = m_textMeshPro.fontSharedMaterial;
+    }
+
+    // Use this for initialization
+	IEnumerator Start ()
+    {
+        Matrix4x4 matrix = new Matrix4x4(); 
+        
+        while (true)
+        {
+            //matrix.SetTRS(new Vector3 (Time.time * TranslationSpeeds.x, Time.time * TranslationSpeeds.y, Time.time * TranslationSpeeds.z), Quaternion.Euler(Time.time * RotationSpeeds.x, Time.time * RotationSpeeds.y , Time.time * RotationSpeeds.z), Vector3.one);
+             matrix.SetTRS(Vector3.zero, Quaternion.Euler(Time.time * RotationSpeeds.x, Time.time * RotationSpeeds.y , Time.time * RotationSpeeds.z), Vector3.one);
+
+            m_material.SetMatrix("_EnvMatrix", matrix);
+
+            yield return null;
+        }
+	}
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/ObjectSpin.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class ObjectSpin : MonoBehaviour
+    {
+        #pragma warning disable 0414
+        public enum MotionType { Rotation, SearchLight, Translation };
+        public MotionType Motion;
+
+        public Vector3 TranslationDistance = new Vector3(5, 0, 0);
+        public float TranslationSpeed = 1.0f;
+        public float SpinSpeed = 5;
+        public int RotationRange = 15;
+        private Transform m_transform;
+
+        private float m_time;
+        private Vector3 m_prevPOS;
+        private Vector3 m_initial_Rotation;
+        private Vector3 m_initial_Position;
+        private Color32 m_lightColor;
+
+        void Awake()
+        {
+            m_transform = transform;
+            m_initial_Rotation = m_transform.rotation.eulerAngles;
+            m_initial_Position = m_transform.position;
+
+            Light light = GetComponent<Light>();
+            m_lightColor = light != null ? light.color : Color.black;
+        }
+
+
+        // Update is called once per frame
+        void Update()
+        {
+            switch (Motion)
+            {
+                case MotionType.Rotation:
+                    m_transform.Rotate(0, SpinSpeed * Time.deltaTime, 0);
+                    break;
+                case MotionType.SearchLight:
+                    m_time += SpinSpeed * Time.deltaTime;
+                    m_transform.rotation = Quaternion.Euler(m_initial_Rotation.x, Mathf.Sin(m_time) * RotationRange + m_initial_Rotation.y, m_initial_Rotation.z);
+                    break;
+                case MotionType.Translation:
+                    m_time += TranslationSpeed * Time.deltaTime;
+
+                    float x = TranslationDistance.x * Mathf.Cos(m_time);
+                    float y = TranslationDistance.y * Mathf.Sin(m_time) * Mathf.Cos(m_time * 1f);
+                    float z = TranslationDistance.z * Mathf.Sin(m_time);
+
+                    m_transform.position = m_initial_Position + new Vector3(x, z, y);
+
+                    // Drawing light patterns because they can be cool looking.
+                    //if (Time.frameCount > 1)
+                    //    Debug.DrawLine(m_transform.position, m_prevPOS, m_lightColor, 100f);
+
+                    m_prevPOS = m_transform.position;
+                    break;
+            }
+        }
+    }
+}-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_TextEventHandler.cs
+```csharp
+﻿using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.EventSystems;
+using System;
+
+
+namespace TMPro
+{
+
+    public class TMP_TextEventHandler : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+    {
+        [Serializable]
+        public class CharacterSelectionEvent : UnityEvent<char, int> { }
+
+        [Serializable]
+        public class SpriteSelectionEvent : UnityEvent<char, int> { }
+
+        [Serializable]
+        public class WordSelectionEvent : UnityEvent<string, int, int> { }
+
+        [Serializable]
+        public class LineSelectionEvent : UnityEvent<string, int, int> { }
+
+        [Serializable]
+        public class LinkSelectionEvent : UnityEvent<string, string, int> { }
+
+
+        /// <summary>
+        /// Event delegate triggered when pointer is over a character.
+        /// </summary>
+        public CharacterSelectionEvent onCharacterSelection
+        {
+            get { return m_OnCharacterSelection; }
+            set { m_OnCharacterSelection = value; }
+        }
+        [SerializeField]
+        private CharacterSelectionEvent m_OnCharacterSelection = new CharacterSelectionEvent();
+
+
+        /// <summary>
+        /// Event delegate triggered when pointer is over a sprite.
+        /// </summary>
+        public SpriteSelectionEvent onSpriteSelection
+        {
+            get { return m_OnSpriteSelection; }
+            set { m_OnSpriteSelection = value; }
+        }
+        [SerializeField]
+        private SpriteSelectionEvent m_OnSpriteSelection = new SpriteSelectionEvent();
+
+
+        /// <summary>
+        /// Event delegate triggered when pointer is over a word.
+        /// </summary>
+        public WordSelectionEvent onWordSelection
+        {
+            get { return m_OnWordSelection; }
+            set { m_OnWordSelection = value; }
+        }
+        [SerializeField]
+        private WordSelectionEvent m_OnWordSelection = new WordSelectionEvent();
+
+
+        /// <summary>
+        /// Event delegate triggered when pointer is over a line.
+        /// </summary>
+        public LineSelectionEvent onLineSelection
+        {
+            get { return m_OnLineSelection; }
+            set { m_OnLineSelection = value; }
+        }
+        [SerializeField]
+        private LineSelectionEvent m_OnLineSelection = new LineSelectionEvent();
+
+
+        /// <summary>
+        /// Event delegate triggered when pointer is over a link.
+        /// </summary>
+        public LinkSelectionEvent onLinkSelection
+        {
+            get { return m_OnLinkSelection; }
+            set { m_OnLinkSelection = value; }
+        }
+        [SerializeField]
+        private LinkSelectionEvent m_OnLinkSelection = new LinkSelectionEvent();
+
+
+
+        private TMP_Text m_TextComponent;
+
+        private Camera m_Camera;
+        private Canvas m_Canvas;
+
+        private int m_selectedLink = -1;
+        private int m_lastCharIndex = -1;
+        private int m_lastWordIndex = -1;
+        private int m_lastLineIndex = -1;
+
+        void Awake()
+        {
+            // Get a reference to the text component.
+            m_TextComponent = gameObject.GetComponent<TMP_Text>();
+
+            // Get a reference to the camera rendering the text taking into consideration the text component type.
+            if (m_TextComponent.GetType() == typeof(TextMeshProUGUI))
+            {
+                m_Canvas = gameObject.GetComponentInParent<Canvas>();
+                if (m_Canvas != null)
+                {
+                    if (m_Canvas.renderMode == RenderMode.ScreenSpaceOverlay)
+                        m_Camera = null;
+                    else
+                        m_Camera = m_Canvas.worldCamera;
+                }
+            }
+            else
+            {
+                m_Camera = Camera.main;
+            }
+        }
+
+
+        void LateUpdate()
+        {
+            if (TMP_TextUtilities.IsIntersectingRectTransform(m_TextComponent.rectTransform, Input.mousePosition, m_Camera))
+            {
+                #region Nearest Character
+                /*int charIndex = TMP_TextUtilities.FindNearestCharacterOnLine(m_TextComponent, Input.mousePosition, 0, m_Camera, false);
+                if (charIndex != -1 && charIndex != m_lastCharIndex)
+                {
+                    m_lastCharIndex = charIndex;
+                }*/
+                #endregion
+
+
+                #region Example of Character or Sprite Selection
+                int charIndex = TMP_TextUtilities.FindIntersectingCharacter(m_TextComponent, Input.mousePosition, m_Camera, true);
+                if (charIndex != -1 && charIndex != m_lastCharIndex)
+                {
+                    m_lastCharIndex = charIndex;
+
+                    TMP_TextElementType elementType = m_TextComponent.textInfo.characterInfo[charIndex].elementType;
+
+                    // Send event to any event listeners depending on whether it is a character or sprite.
+                    if (elementType == TMP_TextElementType.Character)
+                        SendOnCharacterSelection(m_TextComponent.textInfo.characterInfo[charIndex].character, charIndex);
+                    else if (elementType == TMP_TextElementType.Sprite)
+                        SendOnSpriteSelection(m_TextComponent.textInfo.characterInfo[charIndex].character, charIndex);
+                }
+                #endregion
+
+
+                #region Example of Word Selection
+                // Check if Mouse intersects any words and if so assign a random color to that word.
+                int wordIndex = TMP_TextUtilities.FindIntersectingWord(m_TextComponent, Input.mousePosition, m_Camera);
+                if (wordIndex != -1 && wordIndex != m_lastWordIndex)
+                {
+                    m_lastWordIndex = wordIndex;
+
+                    // Get the information about the selected word.
+                    TMP_WordInfo wInfo = m_TextComponent.textInfo.wordInfo[wordIndex];
+
+                    // Send the event to any listeners.
+                    SendOnWordSelection(wInfo.GetWord(), wInfo.firstCharacterIndex, wInfo.characterCount);
+                }
+                #endregion
+
+
+                #region Example of Line Selection
+                // Check if Mouse intersects any words and if so assign a random color to that word.
+                int lineIndex = TMP_TextUtilities.FindIntersectingLine(m_TextComponent, Input.mousePosition, m_Camera);
+                if (lineIndex != -1 && lineIndex != m_lastLineIndex)
+                {
+                    m_lastLineIndex = lineIndex;
+
+                    // Get the information about the selected word.
+                    TMP_LineInfo lineInfo = m_TextComponent.textInfo.lineInfo[lineIndex];
+
+                    // Send the event to any listeners.
+                    char[] buffer = new char[lineInfo.characterCount];
+                    for (int i = 0; i < lineInfo.characterCount && i < m_TextComponent.textInfo.characterInfo.Length; i++)
+                    {
+                        buffer[i] = m_TextComponent.textInfo.characterInfo[i + lineInfo.firstCharacterIndex].character;
+                    }
+
+                    string lineText = new string(buffer);
+                    SendOnLineSelection(lineText, lineInfo.firstCharacterIndex, lineInfo.characterCount);
+                }
+                #endregion
+
+
+                #region Example of Link Handling
+                // Check if mouse intersects with any links.
+                int linkIndex = TMP_TextUtilities.FindIntersectingLink(m_TextComponent, Input.mousePosition, m_Camera);
+
+                // Handle new Link selection.
+                if (linkIndex != -1 && linkIndex != m_selectedLink)
+                {
+                    m_selectedLink = linkIndex;
+
+                    // Get information about the link.
+                    TMP_LinkInfo linkInfo = m_TextComponent.textInfo.linkInfo[linkIndex];
+
+                    // Send the event to any listeners.
+                    SendOnLinkSelection(linkInfo.GetLinkID(), linkInfo.GetLinkText(), linkIndex);
+                }
+                #endregion
+            }
+            else
+            {
+                // Reset all selections given we are hovering outside the text container bounds.
+                m_selectedLink = -1;
+                m_lastCharIndex = -1;
+                m_lastWordIndex = -1;
+                m_lastLineIndex = -1;
+            }
+        }
+
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            //Debug.Log("OnPointerEnter()");
+        }
+
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            //Debug.Log("OnPointerExit()");
+        }
+
+
+        private void SendOnCharacterSelection(char character, int characterIndex)
+        {
+            if (onCharacterSelection != null)
+                onCharacterSelection.Invoke(character, characterIndex);
+        }
+
+        private void SendOnSpriteSelection(char character, int characterIndex)
+        {
+            if (onSpriteSelection != null)
+                onSpriteSelection.Invoke(character, characterIndex);
+        }
+
+        private void SendOnWordSelection(string word, int charIndex, int length)
+        {
+            if (onWordSelection != null)
+                onWordSelection.Invoke(word, charIndex, length);
+        }
+
+        private void SendOnLineSelection(string line, int charIndex, int length)
+        {
+            if (onLineSelection != null)
+                onLineSelection.Invoke(line, charIndex, length);
+        }
+
+        private void SendOnLinkSelection(string linkID, string linkText, int linkIndex)
+        {
+            if (onLinkSelection != null)
+                onLinkSelection.Invoke(linkID, linkText, linkIndex);
+        }
+
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/SkewTextExample.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class SkewTextExample : MonoBehaviour
+    {
+
+        private TMP_Text m_TextComponent;
+
+        public AnimationCurve VertexCurve = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.25f, 2.0f), new Keyframe(0.5f, 0), new Keyframe(0.75f, 2.0f), new Keyframe(1, 0f));
+        //public float AngleMultiplier = 1.0f;
+        //public float SpeedMultiplier = 1.0f;
+        public float CurveScale = 1.0f;
+        public float ShearAmount = 1.0f;
+
+        void Awake()
+        {
+            m_TextComponent = gameObject.GetComponent<TMP_Text>();
+        }
+
+
+        void Start()
+        {
+            StartCoroutine(WarpText());
+        }
+
+
+        private AnimationCurve CopyAnimationCurve(AnimationCurve curve)
+        {
+            AnimationCurve newCurve = new AnimationCurve();
+
+            newCurve.keys = curve.keys;
+
+            return newCurve;
+        }
+
+
+        /// <summary>
+        ///  Method to curve text along a Unity animation curve.
+        /// </summary>
+        /// <param name="textComponent"></param>
+        /// <returns></returns>
+        IEnumerator WarpText()
+        {
+            VertexCurve.preWrapMode = WrapMode.Clamp;
+            VertexCurve.postWrapMode = WrapMode.Clamp;
+
+            //Mesh mesh = m_TextComponent.textInfo.meshInfo[0].mesh;
+
+            Vector3[] vertices;
+            Matrix4x4 matrix;
+
+            m_TextComponent.havePropertiesChanged = true; // Need to force the TextMeshPro Object to be updated.
+            CurveScale *= 10;
+            float old_CurveScale = CurveScale;
+            float old_ShearValue = ShearAmount;
+            AnimationCurve old_curve = CopyAnimationCurve(VertexCurve);
+
+            while (true)
+            {
+                if (!m_TextComponent.havePropertiesChanged && old_CurveScale == CurveScale && old_curve.keys[1].value == VertexCurve.keys[1].value && old_ShearValue == ShearAmount)
+                {
+                    yield return null;
+                    continue;
+                }
+
+                old_CurveScale = CurveScale;
+                old_curve = CopyAnimationCurve(VertexCurve);
+                old_ShearValue = ShearAmount;
+
+                m_TextComponent.ForceMeshUpdate(); // Generate the mesh and populate the textInfo with data we can use and manipulate.
+
+                TMP_TextInfo textInfo = m_TextComponent.textInfo;
+                int characterCount = textInfo.characterCount;
+
+
+                if (characterCount == 0) continue;
+
+                //vertices = textInfo.meshInfo[0].vertices;
+                //int lastVertexIndex = textInfo.characterInfo[characterCount - 1].vertexIndex;
+
+                float boundsMinX = m_TextComponent.bounds.min.x;  //textInfo.meshInfo[0].mesh.bounds.min.x;
+                float boundsMaxX = m_TextComponent.bounds.max.x;  //textInfo.meshInfo[0].mesh.bounds.max.x;
+
+
+
+                for (int i = 0; i < characterCount; i++)
+                {
+                    if (!textInfo.characterInfo[i].isVisible)
+                        continue;
+
+                    int vertexIndex = textInfo.characterInfo[i].vertexIndex;
+
+                    // Get the index of the mesh used by this character.
+                    int materialIndex = textInfo.characterInfo[i].materialReferenceIndex;
+
+                    vertices = textInfo.meshInfo[materialIndex].vertices;
+
+                    // Compute the baseline mid point for each character
+                    Vector3 offsetToMidBaseline = new Vector2((vertices[vertexIndex + 0].x + vertices[vertexIndex + 2].x) / 2, textInfo.characterInfo[i].baseLine);
+                    //float offsetY = VertexCurve.Evaluate((float)i / characterCount + loopCount / 50f); // Random.Range(-0.25f, 0.25f);
+
+                    // Apply offset to adjust our pivot point.
+                    vertices[vertexIndex + 0] += -offsetToMidBaseline;
+                    vertices[vertexIndex + 1] += -offsetToMidBaseline;
+                    vertices[vertexIndex + 2] += -offsetToMidBaseline;
+                    vertices[vertexIndex + 3] += -offsetToMidBaseline;
+
+                    // Apply the Shearing FX
+                    float shear_value = ShearAmount * 0.01f;
+                    Vector3 topShear = new Vector3(shear_value * (textInfo.characterInfo[i].topRight.y - textInfo.characterInfo[i].baseLine), 0, 0);
+                    Vector3 bottomShear = new Vector3(shear_value * (textInfo.characterInfo[i].baseLine - textInfo.characterInfo[i].bottomRight.y), 0, 0);
+
+                    vertices[vertexIndex + 0] += -bottomShear;
+                    vertices[vertexIndex + 1] += topShear;
+                    vertices[vertexIndex + 2] += topShear;
+                    vertices[vertexIndex + 3] += -bottomShear;
+
+
+                    // Compute the angle of rotation for each character based on the animation curve
+                    float x0 = (offsetToMidBaseline.x - boundsMinX) / (boundsMaxX - boundsMinX); // Character's position relative to the bounds of the mesh.
+                    float x1 = x0 + 0.0001f;
+                    float y0 = VertexCurve.Evaluate(x0) * CurveScale;
+                    float y1 = VertexCurve.Evaluate(x1) * CurveScale;
+
+                    Vector3 horizontal = new Vector3(1, 0, 0);
+                    //Vector3 normal = new Vector3(-(y1 - y0), (x1 * (boundsMaxX - boundsMinX) + boundsMinX) - offsetToMidBaseline.x, 0);
+                    Vector3 tangent = new Vector3(x1 * (boundsMaxX - boundsMinX) + boundsMinX, y1) - new Vector3(offsetToMidBaseline.x, y0);
+
+                    float dot = Mathf.Acos(Vector3.Dot(horizontal, tangent.normalized)) * 57.2957795f;
+                    Vector3 cross = Vector3.Cross(horizontal, tangent);
+                    float angle = cross.z > 0 ? dot : 360 - dot;
+
+                    matrix = Matrix4x4.TRS(new Vector3(0, y0, 0), Quaternion.Euler(0, 0, angle), Vector3.one);
+
+                    vertices[vertexIndex + 0] = matrix.MultiplyPoint3x4(vertices[vertexIndex + 0]);
+                    vertices[vertexIndex + 1] = matrix.MultiplyPoint3x4(vertices[vertexIndex + 1]);
+                    vertices[vertexIndex + 2] = matrix.MultiplyPoint3x4(vertices[vertexIndex + 2]);
+                    vertices[vertexIndex + 3] = matrix.MultiplyPoint3x4(vertices[vertexIndex + 3]);
+
+                    vertices[vertexIndex + 0] += offsetToMidBaseline;
+                    vertices[vertexIndex + 1] += offsetToMidBaseline;
+                    vertices[vertexIndex + 2] += offsetToMidBaseline;
+                    vertices[vertexIndex + 3] += offsetToMidBaseline;
+                }
+
+
+                // Upload the mesh with the revised information
+                m_TextComponent.UpdateVertexData();
+
+                yield return null; // new WaitForSeconds(0.025f);
+            }
+        }
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/Benchmark01.cs
+```csharp
+using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class Benchmark01 : MonoBehaviour
+    {
+
+        public int BenchmarkType = 0;
+
+        public TMP_FontAsset TMProFont;
+        public Font TextMeshFont;
+
+        private TextMeshPro m_textMeshPro;
+        private TextContainer m_textContainer;
+        private TextMesh m_textMesh;
+
+        private const string label01 = "The <#0050FF>count is: </color>{0}";
+        private const string label02 = "The <color=#0050FF>count is: </color>";
+
+        //private string m_string;
+        //private int m_frame;
+
+        private Material m_material01;
+        private Material m_material02;
+
+
+
+        IEnumerator Start()
+        {
+
+
+
+            if (BenchmarkType == 0) // TextMesh Pro Component
+            {
+                m_textMeshPro = gameObject.AddComponent<TextMeshPro>();
+                m_textMeshPro.autoSizeTextContainer = true;
+
+                //m_textMeshPro.anchorDampening = true;
+
+                if (TMProFont != null)
+                    m_textMeshPro.font = TMProFont;
+
+                //m_textMeshPro.font = Resources.Load("Fonts & Materials/Anton SDF", typeof(TextMeshProFont)) as TextMeshProFont; // Make sure the Anton SDF exists before calling this...
+                //m_textMeshPro.fontSharedMaterial = Resources.Load("Fonts & Materials/Anton SDF", typeof(Material)) as Material; // Same as above make sure this material exists.
+
+                m_textMeshPro.fontSize = 48;
+                m_textMeshPro.alignment = TextAlignmentOptions.Center;
+                //m_textMeshPro.anchor = AnchorPositions.Center;
+                m_textMeshPro.extraPadding = true;
+                //m_textMeshPro.outlineWidth = 0.25f;
+                //m_textMeshPro.fontSharedMaterial.SetFloat("_OutlineWidth", 0.2f);
+                //m_textMeshPro.fontSharedMaterial.EnableKeyword("UNDERLAY_ON");
+                //m_textMeshPro.lineJustification = LineJustificationTypes.Center;
+                m_textMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
+                //m_textMeshPro.lineLength = 60;
+                //m_textMeshPro.characterSpacing = 0.2f;
+                //m_textMeshPro.fontColor = new Color32(255, 255, 255, 255);
+
+                m_material01 = m_textMeshPro.font.material;
+                m_material02 = Resources.Load<Material>("Fonts & Materials/LiberationSans SDF - Drop Shadow"); // Make sure the LiberationSans SDF exists before calling this...
+
+
+            }
+            else if (BenchmarkType == 1) // TextMesh
+            {
+                m_textMesh = gameObject.AddComponent<TextMesh>();
+
+                if (TextMeshFont != null)
+                {
+                    m_textMesh.font = TextMeshFont;
+                    m_textMesh.GetComponent<Renderer>().sharedMaterial = m_textMesh.font.material;
+                }
+                else
+                {
+                    m_textMesh.font = Resources.Load("Fonts/ARIAL", typeof(Font)) as Font;
+                    m_textMesh.GetComponent<Renderer>().sharedMaterial = m_textMesh.font.material;
+                }
+
+                m_textMesh.fontSize = 48;
+                m_textMesh.anchor = TextAnchor.MiddleCenter;
+
+                //m_textMesh.color = new Color32(255, 255, 0, 255);
+            }
+
+
+
+            for (int i = 0; i <= 1000000; i++)
+            {
+                if (BenchmarkType == 0)
+                {
+                    m_textMeshPro.SetText(label01, i % 1000);
+                    if (i % 1000 == 999)
+                        m_textMeshPro.fontSharedMaterial = m_textMeshPro.fontSharedMaterial == m_material01 ? m_textMeshPro.fontSharedMaterial = m_material02 : m_textMeshPro.fontSharedMaterial = m_material01;
+
+
+
+                }
+                else if (BenchmarkType == 1)
+                    m_textMesh.text = label02 + (i % 1000).ToString();
+
+                yield return null;
+            }
+
+
+            yield return null;
+        }
+
+
+        /*
+        void Update()
+        {
+            if (BenchmarkType == 0)
+            {
+                m_textMeshPro.text = (m_frame % 1000).ToString();
+            }
+            else if (BenchmarkType == 1)
+            {
+                m_textMesh.text = (m_frame % 1000).ToString();
+            }
+
+            m_frame += 1;
+        }
+        */
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMPro_InstructionOverlay.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+    
+    public class TMPro_InstructionOverlay : MonoBehaviour
+    {
+
+        public enum FpsCounterAnchorPositions { TopLeft, BottomLeft, TopRight, BottomRight };
+
+        public FpsCounterAnchorPositions AnchorPosition = FpsCounterAnchorPositions.BottomLeft;
+
+        private const string instructions = "Camera Control - <#ffff00>Shift + RMB\n</color>Zoom - <#ffff00>Mouse wheel.";
+
+        private TextMeshPro m_TextMeshPro;
+        private TextContainer m_textContainer;
+        private Transform m_frameCounter_transform;
+        private Camera m_camera;
+
+        //private FpsCounterAnchorPositions last_AnchorPosition;
+
+        void Awake()
+        {
+            if (!enabled)
+                return;
+
+            m_camera = Camera.main;
+
+            GameObject frameCounter = new GameObject("Frame Counter");
+            m_frameCounter_transform = frameCounter.transform;
+            m_frameCounter_transform.parent = m_camera.transform;
+            m_frameCounter_transform.localRotation = Quaternion.identity;
+
+
+            m_TextMeshPro = frameCounter.AddComponent<TextMeshPro>();
+            m_TextMeshPro.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+            m_TextMeshPro.fontSharedMaterial = Resources.Load<Material>("Fonts & Materials/LiberationSans SDF - Overlay");
+
+            m_TextMeshPro.fontSize = 30;
+
+            m_TextMeshPro.isOverlay = true;
+            m_textContainer = frameCounter.GetComponent<TextContainer>();
+
+            Set_FrameCounter_Position(AnchorPosition);
+            //last_AnchorPosition = AnchorPosition;
+
+            m_TextMeshPro.text = instructions;
+
+        }
+
+
+
+
+        void Set_FrameCounter_Position(FpsCounterAnchorPositions anchor_position)
+        {
+
+            switch (anchor_position)
+            {
+                case FpsCounterAnchorPositions.TopLeft:
+                    //m_TextMeshPro.anchor = AnchorPositions.TopLeft;
+                    m_textContainer.anchorPosition = TextContainerAnchors.TopLeft;
+                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(0, 1, 100.0f));
+                    break;
+                case FpsCounterAnchorPositions.BottomLeft:
+                    //m_TextMeshPro.anchor = AnchorPositions.BottomLeft;
+                    m_textContainer.anchorPosition = TextContainerAnchors.BottomLeft;
+                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(0, 0, 100.0f));
+                    break;
+                case FpsCounterAnchorPositions.TopRight:
+                    //m_TextMeshPro.anchor = AnchorPositions.TopRight;
+                    m_textContainer.anchorPosition = TextContainerAnchors.TopRight;
+                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(1, 1, 100.0f));
+                    break;
+                case FpsCounterAnchorPositions.BottomRight:
+                    //m_TextMeshPro.anchor = AnchorPositions.BottomRight;
+                    m_textContainer.anchorPosition = TextContainerAnchors.BottomRight;
+                    m_frameCounter_transform.position = m_camera.ViewportToWorldPoint(new Vector3(1, 0, 100.0f));
+                    break;
+            }
+        }
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/Benchmark04.cs
+```csharp
+using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class Benchmark04 : MonoBehaviour
+    {
+
+        public int SpawnType = 0;
+
+        public int MinPointSize = 12;
+        public int MaxPointSize = 64;
+        public int Steps = 4;
+
+        private Transform m_Transform;
+        //private TextMeshProFloatingText floatingText_Script;
+        //public Material material;
+
+
+        void Start()
+        {
+            m_Transform = transform;
+
+            float lineHeight = 0;
+            float orthoSize = Camera.main.orthographicSize = Screen.height / 2;
+            float ratio = (float)Screen.width / Screen.height;
+
+            for (int i = MinPointSize; i <= MaxPointSize; i += Steps)
+            {
+                if (SpawnType == 0)
+                {
+                    // TextMesh Pro Implementation
+                    GameObject go = new GameObject("Text - " + i + " Pts");
+
+                    if (lineHeight > orthoSize * 2) return;
+
+                    go.transform.position = m_Transform.position + new Vector3(ratio * -orthoSize * 0.975f, orthoSize * 0.975f - lineHeight, 0);
+
+                    TextMeshPro textMeshPro = go.AddComponent<TextMeshPro>();
+
+                    //textMeshPro.fontSharedMaterial = material;
+                    //textMeshPro.font = Resources.Load("Fonts & Materials/LiberationSans SDF", typeof(TextMeshProFont)) as TextMeshProFont;
+                    //textMeshPro.anchor = AnchorPositions.Left;
+                    textMeshPro.rectTransform.pivot = new Vector2(0, 0.5f);
+
+                    textMeshPro.textWrappingMode = TextWrappingModes.NoWrap;
+                    textMeshPro.extraPadding = true;
+                    textMeshPro.isOrthographic = true;
+                    textMeshPro.fontSize = i;
+
+                    textMeshPro.text = i + " pts - Lorem ipsum dolor sit...";
+                    textMeshPro.color = new Color32(255, 255, 255, 255);
+
+                    lineHeight += i;
+                }
+                else
+                {
+                    // TextMesh Implementation
+                    // Causes crashes since atlas needed exceeds 4096 X 4096
+                    /*
+                    GameObject go = new GameObject("Arial " + i);
+
+                    //if (lineHeight > orthoSize * 2 * 0.9f) return;
+
+                    go.transform.position = m_Transform.position + new Vector3(ratio * -orthoSize * 0.975f, orthoSize * 0.975f - lineHeight, 1);
+
+                    TextMesh textMesh = go.AddComponent<TextMesh>();
+                    textMesh.font = Resources.Load("Fonts/ARIAL", typeof(Font)) as Font;
+                    textMesh.renderer.sharedMaterial = textMesh.font.material;
+                    textMesh.anchor = TextAnchor.MiddleLeft;
+                    textMesh.fontSize = i * 10;
+
+                    textMesh.color = new Color32(255, 255, 255, 255);
+                    textMesh.text = i + " pts - Lorem ipsum dolor sit...";
+
+                    lineHeight += i;
+                    */
+                }
+            }
+        }
+
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/VertexShakeB.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class VertexShakeB : MonoBehaviour
+    {
+
+        public float AngleMultiplier = 1.0f;
+        public float SpeedMultiplier = 1.0f;
+        public float CurveScale = 1.0f;
+
+        private TMP_Text m_TextComponent;
+        private bool hasTextChanged;
+
+
+        void Awake()
+        {
+            m_TextComponent = GetComponent<TMP_Text>();
+        }
+
+        void OnEnable()
+        {
+            // Subscribe to event fired when text object has been regenerated.
+            TMPro_EventManager.TEXT_CHANGED_EVENT.Add(ON_TEXT_CHANGED);
+        }
+
+        void OnDisable()
+        {
+            TMPro_EventManager.TEXT_CHANGED_EVENT.Remove(ON_TEXT_CHANGED);
+        }
+
+
+        void Start()
+        {
+            StartCoroutine(AnimateVertexColors());
+        }
+
+
+        void ON_TEXT_CHANGED(Object obj)
+        {
+            if (obj = m_TextComponent)
+                hasTextChanged = true;
+        }
+
+        /// <summary>
+        /// Method to animate vertex colors of a TMP Text object.
+        /// </summary>
+        /// <returns></returns>
+        IEnumerator AnimateVertexColors()
+        {
+
+            // We force an update of the text object since it would only be updated at the end of the frame. Ie. before this code is executed on the first frame.
+            // Alternatively, we could yield and wait until the end of the frame when the text object will be generated.
+            m_TextComponent.ForceMeshUpdate();
+
+            TMP_TextInfo textInfo = m_TextComponent.textInfo;
+
+            Matrix4x4 matrix;
+            Vector3[][] copyOfVertices = new Vector3[0][];
+
+            hasTextChanged = true;
+
+            while (true)
+            {
+                // Allocate new vertices 
+                if (hasTextChanged)
+                {
+                    if (copyOfVertices.Length < textInfo.meshInfo.Length)
+                        copyOfVertices = new Vector3[textInfo.meshInfo.Length][];
+
+                    for (int i = 0; i < textInfo.meshInfo.Length; i++)
+                    {
+                        int length = textInfo.meshInfo[i].vertices.Length;
+                        copyOfVertices[i] = new Vector3[length];
+                    }
+
+                    hasTextChanged = false;
+                }
+
+                int characterCount = textInfo.characterCount;
+
+                // If No Characters then just yield and wait for some text to be added
+                if (characterCount == 0)
+                {
+                    yield return new WaitForSeconds(0.25f);
+                    continue;
+                }
+
+                int lineCount = textInfo.lineCount;
+
+                // Iterate through each line of the text.
+                for (int i = 0; i < lineCount; i++)
+                {
+
+                    int first = textInfo.lineInfo[i].firstCharacterIndex;
+                    int last = textInfo.lineInfo[i].lastCharacterIndex;
+
+                    // Determine the center of each line
+                    Vector3 centerOfLine = (textInfo.characterInfo[first].bottomLeft + textInfo.characterInfo[last].topRight) / 2;
+                    Quaternion rotation = Quaternion.Euler(0, 0, Random.Range(-0.25f, 0.25f));
+
+                    // Iterate through each character of the line.
+                    for (int j = first; j <= last; j++)
+                    {
+                        // Skip characters that are not visible and thus have no geometry to manipulate.
+                        if (!textInfo.characterInfo[j].isVisible)
+                            continue;
+
+                        // Get the index of the material used by the current character.
+                        int materialIndex = textInfo.characterInfo[j].materialReferenceIndex;
+
+                        // Get the index of the first vertex used by this text element.
+                        int vertexIndex = textInfo.characterInfo[j].vertexIndex;
+
+                        // Get the vertices of the mesh used by this text element (character or sprite).
+                        Vector3[] sourceVertices = textInfo.meshInfo[materialIndex].vertices;
+
+                        // Determine the center point of each character at the baseline.
+                        Vector3 charCenter = (sourceVertices[vertexIndex + 0] + sourceVertices[vertexIndex + 2]) / 2;
+
+                        // Need to translate all 4 vertices of each quad to aligned with center of character.
+                        // This is needed so the matrix TRS is applied at the origin for each character.
+                        copyOfVertices[materialIndex][vertexIndex + 0] = sourceVertices[vertexIndex + 0] - charCenter;
+                        copyOfVertices[materialIndex][vertexIndex + 1] = sourceVertices[vertexIndex + 1] - charCenter;
+                        copyOfVertices[materialIndex][vertexIndex + 2] = sourceVertices[vertexIndex + 2] - charCenter;
+                        copyOfVertices[materialIndex][vertexIndex + 3] = sourceVertices[vertexIndex + 3] - charCenter;
+
+                        // Determine the random scale change for each character.
+                        float randomScale = Random.Range(0.95f, 1.05f);
+
+                        // Setup the matrix for the scale change.
+                        matrix = Matrix4x4.TRS(Vector3.one, Quaternion.identity, Vector3.one * randomScale);
+
+                        // Apply the scale change relative to the center of each character.
+                        copyOfVertices[materialIndex][vertexIndex + 0] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 0]);
+                        copyOfVertices[materialIndex][vertexIndex + 1] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 1]);
+                        copyOfVertices[materialIndex][vertexIndex + 2] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 2]);
+                        copyOfVertices[materialIndex][vertexIndex + 3] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 3]);
+
+                        // Revert the translation change.
+                        copyOfVertices[materialIndex][vertexIndex + 0] += charCenter;
+                        copyOfVertices[materialIndex][vertexIndex + 1] += charCenter;
+                        copyOfVertices[materialIndex][vertexIndex + 2] += charCenter;
+                        copyOfVertices[materialIndex][vertexIndex + 3] += charCenter;
+
+                        // Need to translate all 4 vertices of each quad to aligned with the center of the line.
+                        // This is needed so the matrix TRS is applied from the center of the line.
+                        copyOfVertices[materialIndex][vertexIndex + 0] -= centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 1] -= centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 2] -= centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 3] -= centerOfLine;
+
+                        // Setup the matrix rotation.
+                        matrix = Matrix4x4.TRS(Vector3.one, rotation, Vector3.one);
+
+                        // Apply the matrix TRS to the individual characters relative to the center of the current line.
+                        copyOfVertices[materialIndex][vertexIndex + 0] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 0]);
+                        copyOfVertices[materialIndex][vertexIndex + 1] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 1]);
+                        copyOfVertices[materialIndex][vertexIndex + 2] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 2]);
+                        copyOfVertices[materialIndex][vertexIndex + 3] = matrix.MultiplyPoint3x4(copyOfVertices[materialIndex][vertexIndex + 3]);
+
+                        // Revert the translation change.
+                        copyOfVertices[materialIndex][vertexIndex + 0] += centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 1] += centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 2] += centerOfLine;
+                        copyOfVertices[materialIndex][vertexIndex + 3] += centerOfLine;
+                    }
+                }
+
+                // Push changes into meshes
+                for (int i = 0; i < textInfo.meshInfo.Length; i++)
+                {
+                    textInfo.meshInfo[i].mesh.vertices = copyOfVertices[i];
+                    m_TextComponent.UpdateGeometry(textInfo.meshInfo[i].mesh, i);
+                }
+
+                yield return new WaitForSeconds(0.1f);
+            }
+        }
+
+    }
+}-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/Benchmark02.cs
+```csharp
+using UnityEngine;
+using System.Collections;
+
+
+namespace TMPro.Examples
+{
+
+    public class Benchmark02 : MonoBehaviour
+    {
+
+        public int SpawnType = 0;
+        public int NumberOfNPC = 12;
+
+        public bool IsTextObjectScaleStatic;
+        private TextMeshProFloatingText floatingText_Script;
+
+
+        void Start()
+        {
+
+            for (int i = 0; i < NumberOfNPC; i++)
+            {
+
+
+                if (SpawnType == 0)
+                {
+                    // TextMesh Pro Implementation
+                    GameObject go = new GameObject();
+                    go.transform.position = new Vector3(Random.Range(-95f, 95f), 0.25f, Random.Range(-95f, 95f));
+
+                    TextMeshPro textMeshPro = go.AddComponent<TextMeshPro>();
+
+                    textMeshPro.autoSizeTextContainer = true;
+                    textMeshPro.rectTransform.pivot = new Vector2(0.5f, 0);
+
+                    textMeshPro.alignment = TextAlignmentOptions.Bottom;
+                    textMeshPro.fontSize = 96;
+                    textMeshPro.fontFeatures.Clear();
+
+                    textMeshPro.color = new Color32(255, 255, 0, 255);
+                    textMeshPro.text = "!";
+                    textMeshPro.isTextObjectScaleStatic = IsTextObjectScaleStatic;
+
+                    // Spawn Floating Text
+                    floatingText_Script = go.AddComponent<TextMeshProFloatingText>();
+                    floatingText_Script.SpawnType = 0;
+                    floatingText_Script.IsTextObjectScaleStatic = IsTextObjectScaleStatic;
+                }
+                else if (SpawnType == 1)
+                {
+                    // TextMesh Implementation
+                    GameObject go = new GameObject();
+                    go.transform.position = new Vector3(Random.Range(-95f, 95f), 0.25f, Random.Range(-95f, 95f));
+
+                    TextMesh textMesh = go.AddComponent<TextMesh>();
+                    textMesh.font = Resources.Load<Font>("Fonts/ARIAL");
+                    textMesh.GetComponent<Renderer>().sharedMaterial = textMesh.font.material;
+
+                    textMesh.anchor = TextAnchor.LowerCenter;
+                    textMesh.fontSize = 96;
+
+                    textMesh.color = new Color32(255, 255, 0, 255);
+                    textMesh.text = "!";
+
+                    // Spawn Floating Text
+                    floatingText_Script = go.AddComponent<TextMeshProFloatingText>();
+                    floatingText_Script.SpawnType = 1;
+                }
+                else if (SpawnType == 2)
+                {
+                    // Canvas WorldSpace Camera
+                    GameObject go = new GameObject();
+                    Canvas canvas = go.AddComponent<Canvas>();
+                    canvas.worldCamera = Camera.main;
+
+                    go.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+                    go.transform.position = new Vector3(Random.Range(-95f, 95f), 5f, Random.Range(-95f, 95f));
+
+                    TextMeshProUGUI textObject = new GameObject().AddComponent<TextMeshProUGUI>();
+                    textObject.rectTransform.SetParent(go.transform, false);
+
+                    textObject.color = new Color32(255, 255, 0, 255);
+                    textObject.alignment = TextAlignmentOptions.Bottom;
+                    textObject.fontSize = 96;
+                    textObject.text = "!";
+
+                    // Spawn Floating Text
+                    floatingText_Script = go.AddComponent<TextMeshProFloatingText>();
+                    floatingText_Script.SpawnType = 0;
+                }
+
+
+
+            }
+        }
+    }
+}
+-e 
+```
+
+# File: Assets/TextMesh Pro/Examples & Extras/Scripts/TMP_ExampleScript_01.cs
+```csharp
+﻿using UnityEngine;
+using UnityEngine.UI;
+using System.Collections;
+using TMPro;
+
+
+namespace TMPro.Examples
+{
+
+    public class TMP_ExampleScript_01 : MonoBehaviour
+    {
+        public enum objectType { TextMeshPro = 0, TextMeshProUGUI = 1 };
+
+        public objectType ObjectType;
+        public bool isStatic;
+
+        private TMP_Text m_text;
+
+        //private TMP_InputField m_inputfield;
+
+
+        private const string k_label = "The count is <#0080ff>{0}</color>";
+        private int count;
+
+        void Awake()
+        {
+            // Get a reference to the TMP text component if one already exists otherwise add one.
+            // This example show the convenience of having both TMP components derive from TMP_Text. 
+            if (ObjectType == 0)
+                m_text = GetComponent<TextMeshPro>() ?? gameObject.AddComponent<TextMeshPro>();
+            else
+                m_text = GetComponent<TextMeshProUGUI>() ?? gameObject.AddComponent<TextMeshProUGUI>();
+
+            // Load a new font asset and assign it to the text object.
+            m_text.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/Anton SDF");
+
+            // Load a new material preset which was created with the context menu duplicate.
+            m_text.fontSharedMaterial = Resources.Load<Material>("Fonts & Materials/Anton SDF - Drop Shadow");
+
+            // Set the size of the font.
+            m_text.fontSize = 120;
+
+            // Set the text
+            m_text.text = "A <#0080ff>simple</color> line of text.";
+
+            // Get the preferred width and height based on the supplied width and height as opposed to the actual size of the current text container.
+            Vector2 size = m_text.GetPreferredValues(Mathf.Infinity, Mathf.Infinity);
+
+            // Set the size of the RectTransform based on the new calculated values.
+            m_text.rectTransform.sizeDelta = new Vector2(size.x, size.y);
+        }
+
+
+        void Update()
+        {
+            if (!isStatic)
+            {
+                m_text.SetText(k_label, count % 1000);
+                count += 1;
+            }
+        }
+
+    }
+}
+-e 
+```
+
+# File: Assets/Scripts/Player/JediController.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+public class JediController : MonoBehaviour
+{
+    [Header("Основные настройки")]
+    public int health = 3;
+
+    [Header("Настройки Движения (Keyboard WASD)")]
+    public float maxMoveSpeed = 6f;                  
+    public AnimationCurve moveAccelerationCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f); 
+    public float moveAccelerationDuration = 0.2f;    
+    public float moveDecelerationDuration = 0.15f;   
+    
+    private Vector2 activeMoveVelocity;              
+    private float moveInputTimer = 0f;
+    private Vector2 lastMoveDirection = Vector2.zero;
+
+    [Header("Управление Стрелками (Keyboard Rotation)")]
+    public float arrowMaxSpeed = 360f;               
+    public AnimationCurve arrowAccelerationCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f); 
+    public float arrowAccelerationDuration = 0.25f;  
+    public float arrowDecelerationDuration = 0.15f;  
+
+    [Header("Управление Мышью (Mouse Rotation)")]
+    public float mouseSmoothTime = 0.05f;             
+    private float mouseRotationVelocity;              
+
+    [Header("Настройки Отдачи (Knockback)")]
+    public float knockbackDecay = 8f;                 
+    private Vector2 knockbackVelocity;                
+
+    [Header("Настройки Рывка (Dash Settings)")]
+    public KeyCode dashKey = KeyCode.LeftShift;       
+    public float dashDistance = 4f;                   
+    public float dashDuration = 0.18f;                 
+    public float dashCooldown = 0.8f;                 
+    private bool isDashing = false;
+    private float lastDashTime;
+
+    [Header("Настройки Урона и Сока (Damage Juice)")]
+    public float damageKnockbackForce = 12f;          // Сила отдачи при получении урона
+    public float damageSlowMultiplier = 0.5f;         // Замедление (0.5 = на 50% медленнее во время i-frames)
+    public float damageRecoveryDuration = 1.5f;       // Длительность неуязвимости и замедления (сек)
+    public float flickerInterval = 0.08f;             // Скорость мерцания спрайта
+
+    [Header("Настройки Выпадения Кристаллов")]
+    public bool dropCrystalsOnDamage = true;          // Должны ли выпадать кристаллы при уроне
+    public int crystalsToDrop = 1;                    // Сколько кристаллов выпадает за раз
+    public GameObject bouncingCrystalPrefab;          // Префаб кристалла со скриптом BouncingCrystal
+
+    private bool isRecovering = false;                // Находится ли игрок во фреймах неуязвимости
+    private float currentSpeedMultiplier = 1f;       // Динамический множитель скорости (для замедления)
+
+    // Публичное свойство неуязвимости (i-frames) для проверки пулями
+    public bool IsInvincible => isDashing || isRecovering;
+
+    [Header("Настройки Силы (Ульта)")]
+    public float ultimateRadius = 5f;
+    public GameObject forceSparksPrefab;
+
+    [Header("Настройки Ближнего Боя (Melee Combat)")]
+    public GameObject lightsaberObject; 
+    public float saberDistance = 2f;                  
+    public float attackDuration = 0.35f;              
+    public float spinDegrees = 360f;                  
+    public float attackCooldown = 0.5f; 
+    private bool isAttacking = false;
+    private float lastAttackTime;
+    public bool isSpinning = false; 
+
+    [Header("Визуальные эффекты меча")]
+    public TrailRenderer saberTrail; 
+
+    private Rigidbody2D rb;
+    private Vector2 movement;
+    private Camera mainCamera;
+    private Vector2 lastMousePos; 
+
+    private float arrowInputTimer = 0f;
+    private float arrowCurrentSpeed = 0f;
+    private float arrowLastDirection = 0f;
+
+    private void OnValidate()
+    {
+        if (lightsaberObject != null)
+        {
+            lightsaberObject.transform.localPosition = new Vector3(saberDistance, 0f, 0f);
+        }
+    }
+
+    private void OnEnable()
+    {
+        isDashing = false;
+        isAttacking = false;
+        isSpinning = false;
+        isRecovering = false;
+
+        movement = Vector2.zero;
+        activeMoveVelocity = Vector2.zero;
+        knockbackVelocity = Vector2.zero;
+        moveInputTimer = 0f;
+        currentSpeedMultiplier = 1f;
+
+        arrowInputTimer = 0f;
+        arrowCurrentSpeed = 0f;
+        arrowLastDirection = 0f;
+
+        if (saberTrail != null)
+        {
+            saberTrail.emitting = false;
+        }
+
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            sr.color = new Color(1f, 1f, 1f, 1f);
+        }
+    }
+
+    void Start()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        mainCamera = Camera.main;
+        lastMousePos = Input.mousePosition;
+
+        if (GameManager.Instance != null)
+        {
+            health = GameManager.Instance.playerHealth;
+        }
+
+        if (lightsaberObject != null)
+        {
+            lightsaberObject.transform.localPosition = new Vector3(saberDistance, 0f, 0f);
+        }
+    }
+
+    void Update()
+    {
+        if (isDashing) return;
+
+        if (!isAttacking)
+        {
+            HandleRotation();
+        }
+
+        // Движение разрешено во время атаки
+        movement = Vector2.zero;
+        if (Input.GetKey(KeyCode.W)) movement.y = 1;
+        if (Input.GetKey(KeyCode.S)) movement.y = -1;
+        if (Input.GetKey(KeyCode.A)) movement.x = -1;
+        if (Input.GetKey(KeyCode.D)) movement.x = 1;
+
+        if (isAttacking) return;
+
+        // Логика Рывка (Dash)
+        if (Input.GetKeyDown(dashKey) && Time.time >= lastDashTime + dashCooldown)
+        {
+            StartCoroutine(PerformDash());
+        }
+
+        // Ульта (Пробел)
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            if (GameManager.Instance != null && GameManager.Instance.TryUseUltimate())
+            {
+                UseForce();
+            }
+        }
+
+        // Ближний бой (E)
+        if (Input.GetKeyDown(KeyCode.E) && Time.time >= lastAttackTime + attackCooldown)
+        {
+            StartCoroutine(PerformSpinAttack());
+        }
+    }
+
+    void FixedUpdate()
+    {
+        if (!isAttacking)
+        {
+            rb.angularVelocity = 0f; 
+        }
+
+        knockbackVelocity = Vector2.Lerp(knockbackVelocity, Vector2.zero, Time.fixedDeltaTime * knockbackDecay);
+
+        if (isDashing) return;
+
+        Vector2 inputDir = movement.normalized;
+
+        if (inputDir.sqrMagnitude > 0f)
+        {
+            if (Vector2.Dot(inputDir, lastMoveDirection) < 0.3f)
+            {
+                moveInputTimer = 0f;
+            }
+            lastMoveDirection = inputDir;
+
+            moveInputTimer += Time.fixedDeltaTime;
+            float progress = Mathf.Clamp01(moveInputTimer / moveAccelerationDuration);
+            float speedMultiplier = moveAccelerationCurve.Evaluate(progress);
+
+            // Применяем currentSpeedMultiplier к скорости движения (для замедления при уроне)
+            Vector2 targetVelocity = inputDir * (maxMoveSpeed * currentSpeedMultiplier) * speedMultiplier;
+
+            activeMoveVelocity = Vector2.MoveTowards(activeMoveVelocity, targetVelocity, (maxMoveSpeed / moveAccelerationDuration) * Time.fixedDeltaTime);
+        }
+        else
+        {
+            moveInputTimer = 0f;
+            float stopStep = (maxMoveSpeed / moveDecelerationDuration) * Time.fixedDeltaTime;
+            activeMoveVelocity = Vector2.MoveTowards(activeMoveVelocity, Vector2.zero, stopStep);
+        }
+
+        Vector2 finalVelocity = activeMoveVelocity + knockbackVelocity;
+        
+        rb.MovePosition(rb.position + finalVelocity * Time.fixedDeltaTime);
+    }
+
+    private void HandleRotation()
+    {
+        float inputDirection = 0f;
+        if (Input.GetKey(KeyCode.LeftArrow)) inputDirection = 1f;
+        else if (Input.GetKey(KeyCode.RightArrow)) inputDirection = -1f;
+
+        if (inputDirection != 0f)
+        {
+            if (inputDirection != arrowLastDirection) arrowInputTimer = 0f;
+            arrowLastDirection = inputDirection;
+
+            arrowInputTimer += Time.deltaTime;
+            float progress = Mathf.Clamp01(arrowInputTimer / arrowAccelerationDuration);
+            float speedMultiplier = arrowAccelerationCurve.Evaluate(progress);
+            arrowCurrentSpeed = inputDirection * arrowMaxSpeed * speedMultiplier;
+
+            rb.MoveRotation(rb.rotation + arrowCurrentSpeed * Time.deltaTime);
+            return; 
+        }
+
+        if (arrowCurrentSpeed != 0f)
+        {
+            arrowInputTimer = 0f;
+            float decayStep = (arrowMaxSpeed / arrowDecelerationDuration) * Time.deltaTime;
+            arrowCurrentSpeed = Mathf.MoveTowards(arrowCurrentSpeed, 0f, decayStep);
+            rb.MoveRotation(rb.rotation + arrowCurrentSpeed * Time.deltaTime);
+            return;
+        }
+
+        Vector2 currentMousePos = Input.mousePosition;
+        if (Vector2.Distance(currentMousePos, lastMousePos) > 1f)
+        {
+            Vector3 mouseWorldPos = mainCamera.ScreenToWorldPoint(new Vector3(currentMousePos.x, currentMousePos.y, 10f));
+            Vector2 lookDir = (Vector2)mouseWorldPos - rb.position;
+
+            if (lookDir.sqrMagnitude > 0.5f) 
+            {
+                float targetAngle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg - 90f;
+                float smoothedAngle = Mathf.SmoothDampAngle(rb.rotation, targetAngle, ref mouseRotationVelocity, mouseSmoothTime);
+                rb.MoveRotation(smoothedAngle);
+            }
+            lastMousePos = currentMousePos;
+        }
+    }
+
+    private IEnumerator PerformDash()
+    {
+        isDashing = true;
+        lastDashTime = Time.time;
+
+        Vector2 dashDirection = movement.normalized;
+        if (dashDirection == Vector2.zero)
+        {
+            dashDirection = transform.up;
+        }
+
+        float calculatedDashSpeed = dashDistance / dashDuration;
+
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        Color originalColor = Color.white;
+        if (sr != null)
+        {
+            originalColor = sr.color;
+            sr.color = new Color(originalColor.r, originalColor.g, originalColor.b, 0.4f);
+        }
+
+        if (saberTrail != null) saberTrail.emitting = true;
+
+        float elapsed = 0f;
+        while (elapsed < dashDuration)
+        {
+            elapsed += Time.deltaTime;
+            rb.MovePosition(rb.position + dashDirection * calculatedDashSpeed * Time.deltaTime);
+            yield return null;
+        }
+
+        if (sr != null) sr.color = originalColor;
+        if (saberTrail != null && !isSpinning) saberTrail.emitting = false;
+
+        isDashing = false;
+    }
+
+    private IEnumerator PerformSpinAttack()
+    {
+        isAttacking = true;
+        isSpinning = true;
+        lastAttackTime = Time.time;
+        
+        if (saberTrail != null) saberTrail.emitting = true;
+
+        StartCoroutine(FlashSaber());
+
+        float startAngle = rb.rotation;
+        float targetAngle = startAngle + spinDegrees;
+        float elapsed = 0f;
+
+        while (elapsed < attackDuration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = elapsed / attackDuration;
+            
+            float currentAngle = Mathf.Lerp(startAngle, targetAngle, progress);
+            rb.rotation = currentAngle; 
+            
+            yield return null;
+        }
+
+        rb.rotation = targetAngle;
+
+        isAttacking = false;
+        isSpinning = false;
+
+        if (saberTrail != null) saberTrail.emitting = false;
+    }
+
+    private IEnumerator FlashSaber()
+    {
+        SpriteRenderer sr = lightsaberObject.GetComponent<SpriteRenderer>();
+        if (sr == null) yield break;
+        Color originalColor = sr.color;
+        while (isSpinning)
+        {
+            sr.color = Color.white;
+            yield return new WaitForSeconds(0.05f);
+            sr.color = originalColor;
+            yield return new WaitForSeconds(0.05f);
+        }
+        sr.color = originalColor;
+    }
+
+    public void ApplyKnockback(Vector2 direction, float force)
+    {
+        knockbackVelocity = direction.normalized * force;
+    }
+
+    // ИСПРАВЛЕННЫЙ МЕТОД: поддерживает адаптивное количество урона damageAmount (по умолчанию 1)
+    public void TakeDamage(string source = "Лазерный луч", Vector2 attackerPosition = default, int damageAmount = 1)
+    {
+        // Не получаем урон во время рывка или неуязвимости
+        if (isDashing || isRecovering) return;
+
+        health -= damageAmount; // Отнимаем указанное количество урона
+
+        // 1. Рассчитываем точную отдачу (Knockback) в сторону от источника урона
+        Vector2 pushDir = Vector2.zero;
+        if (attackerPosition != default)
+        {
+            pushDir = ((Vector2)transform.position - attackerPosition).normalized;
+        }
+        else
+        {
+            pushDir = -transform.up; // Откат назад, если источник неизвестен
+        }
+        ApplyKnockback(pushDir, damageKnockbackForce);
+
+        // 2. Логика выпадения кристаллов на землю
+        int currentCrystals = GameManager.Instance != null ? GameManager.Instance.crystals : 0;
+        if (dropCrystalsOnDamage && bouncingCrystalPrefab != null && currentCrystals > 0)
+        {
+            int actualDropCount = Mathf.Min(currentCrystals, crystalsToDrop);
+            
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.crystals -= actualDropCount;
+                if (UIManager.Instance != null) UIManager.Instance.UpdateCrystals(GameManager.Instance.crystals);
+            }
+
+            for (int i = 0; i < actualDropCount; i++)
+            {
+                Instantiate(bouncingCrystalPrefab, transform.position, Quaternion.identity);
+            }
+        }
+
+        // 3. Звук и UI сердечек
+        if (health > 0 && AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.jediHitSound);
+        }
+
+        if (UIManager.Instance != null) UIManager.Instance.UpdateHearts(health);
+        
+        if (health <= 0)
+        {
+            Die(source);
+            return;
+        }
+
+        // 4. Запускаем Корутину мерцания и замедления
+        StartCoroutine(DamageRecoveryRoutine());
+    }
+
+    private IEnumerator DamageRecoveryRoutine()
+    {
+        isRecovering = true;
+        currentSpeedMultiplier = damageSlowMultiplier;
+
+        SpriteRenderer sr = GetComponent<SpriteRenderer>();
+        Color originalColor = Color.white;
+        if (sr != null) originalColor = sr.color;
+
+        float elapsed = 0f;
+        bool isVisible = true;
+
+        while (elapsed < damageRecoveryDuration)
+        {
+            elapsed += flickerInterval;
+            isVisible = !isVisible;
+
+            // Мерцание прозрачностью спрайта
+            if (sr != null)
+            {
+                sr.color = new Color(originalColor.r, originalColor.g, originalColor.b, isVisible ? 1f : 0.2f);
+            }
+
+            yield return new WaitForSecondsRealtime(flickerInterval);
+        }
+
+        // Восстанавливаем дефолтное состояние по завершении i-frames
+        if (sr != null) sr.color = originalColor;
+        currentSpeedMultiplier = 1f;
+        isRecovering = false;
+    }
+
+    private void Die(string source)
+    {
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.jediDeathSound);
+        }
+
+        gameObject.SetActive(false); 
+        if (GameManager.Instance != null) GameManager.Instance.GameOver(source);
+    }
+
+    private void UseForce()
+    {
+        if (forceSparksPrefab != null) Instantiate(forceSparksPrefab, transform.position, Quaternion.identity);
+        
+        Collider2D[] hitObjects = Physics2D.OverlapCircleAll(transform.position, ultimateRadius);
+        foreach (Collider2D hit in hitObjects)
+        {
+            if (hit.CompareTag("Enemy") || hit.CompareTag("Worm")) 
+            {
+                hit.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);
+            }
+            else if (hit.GetComponent<BlasterBolt>() != null) 
+            {
+                Destroy(hit.gameObject);
+            }
+        }
+    }
+}
+-e 
+```
+
+# File: Assets/Scripts/Player/Lightsaber.cs
+```csharp
+using UnityEngine;
+
+public class Lightsaber : MonoBehaviour
+{
+    private JediController jedi;
+
+    void Start()
+    {
+        // Находим скрипт джедая на родительском объекте
+        jedi = GetComponentInParent<JediController>();
+    }
+
+    // Срабатывает в момент первого касания
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        TryDamageEnemy(other);
+    }
+
+    // Срабатывает каждый кадр, пока коллайдеры продолжают соприкасаться
+    void OnTriggerStay2D(Collider2D other)
+    {
+        TryDamageEnemy(other);
+    }
+
+    private void TryDamageEnemy(Collider2D other)
+    {
+        if (other.CompareTag("Enemy"))
+        {
+            // Наносим урон только если джедай сейчас крутится в атаке
+            if (jedi != null && jedi.isSpinning)
+            {
+                other.gameObject.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);
+                Debug.Log("Враг получил урон от светового меча!");
+            }
+        }
+    }
+}-e 
 ```
 
 # File: Assets/Scripts/Player/ForceEffect.cs
@@ -5513,285 +6056,21 @@ public class ForceEffect : MonoBehaviour
 
     void Update()
     {
-        // ����������� ������
+        // ����������� ������
         transform.localScale += Vector3.one * expandSpeed * Time.deltaTime;
         
-        // ������ ������ ����������
+        // ������ ������ ����������
         Color c = sr.color;
         c.a -= (expandSpeed / maxScale) * Time.deltaTime; 
         sr.color = c;
 
-        // �������, ����� ����� ����� �������
+        // �������, ����� ����� ����� �������
         if (transform.localScale.x >= maxScale || c.a <= 0)
         {
             Destroy(gameObject);
         }
     }
-}
-```
-
-# File: Assets/Scripts/Player/JediController.cs
-```csharp
-﻿using UnityEngine;
-using System.Collections;
-
-public class JediController : MonoBehaviour
-{
-    [Header("Основные настройки")]
-    public float moveSpeed = 5f;
-    public int health = 3;
-
-    [Header("Настройки Силы (Ульта)")]
-    public float ultimateRadius = 5f;
-    public GameObject forceSparksPrefab;
-
-    [Header("Настройки Ближнего Боя")]
-    public GameObject saberBlade;      
-    public float attackDuration = 0.2f; 
-    public float attackCooldown = 0.5f; 
-    private bool isAttacking = false;
-    private float lastAttackTime;
-    public bool isSpinning = false; // Для скрипта меча
-
-    private Rigidbody2D rb;
-    private Vector2 movement;
-    private Camera mainCamera;
-    private Vector2 lastMousePos; // Для отслеживания движения мыши
-
-    void Start()
-    {
-        rb = GetComponent<Rigidbody2D>();
-        mainCamera = Camera.main;
-        lastMousePos = Input.mousePosition;
-
-        if (GameManager.Instance != null)
-        {
-            health = GameManager.Instance.playerHealth;
-        }
-    }
-
-    void Update()
-    {
-        if (isAttacking) return;
-
-        // 1. Движение (WASD)
-        // movement.x = Input.GetAxisRaw("Horizontal");
-        // movement.y = Input.GetAxisRaw("Vertical");
-
-        
-        movement = Vector2.zero;
-        if (Input.GetKey(KeyCode.W)) movement.y = 1;
-        if (Input.GetKey(KeyCode.S)) movement.y = -1;
-        if (Input.GetKey(KeyCode.A)) movement.x = -1;
-        if (Input.GetKey(KeyCode.D)) movement.x = 1;
-
-        // 2. Поворот (Мышь ИЛИ Стрелочки)
-        HandleRotation();
-
-        // 3. Ульта (Пробел)
-        if (Input.GetKeyDown(KeyCode.Space))
-        {
-            if (GameManager.Instance != null && GameManager.Instance.TryUseUltimate())
-            {
-                UseForce();
-            }
-        }
-
-        // 4. Ближний бой (E)
-        if (Input.GetKeyDown(KeyCode.E) && Time.time >= lastAttackTime + attackCooldown)
-        {
-            StartCoroutine(PerformSpinAttack());
-        }
-    }
-
-    void FixedUpdate()
-    {
-        // ОСТАНОВКА ФИЗИЧЕСКОГО ВРАЩЕНИЯ
-        // Это не дает врагам или стенам закрутить джедая
-        if (!isAttacking)
-        {
-            rb.angularVelocity = 0f; 
-        }
-
-        if (isAttacking) return;
-        rb.MovePosition(rb.position + movement.normalized * moveSpeed * Time.fixedDeltaTime);
-    }
-
-    [Header("Настройки вращения")]
-    public float rotationSpeed = 300f; // Скорость вращения кнопками
-
-    // Замени метод HandleRotation и RotateTowardsMouse на эти:
-
-    // В начало Update или FixedUpdate добавь это:
-
-private void HandleRotation()
-{
-    bool keysPressed = false;
-    float targetAngle = rb.rotation;
-
-    // Вращение КНОПКАМИ (Стрелки)
-    if (Input.GetKey(KeyCode.LeftArrow))
-    {
-        targetAngle += rotationSpeed * Time.deltaTime;
-        keysPressed = true;
-    }
-    else if (Input.GetKey(KeyCode.RightArrow))
-    {
-        targetAngle -= rotationSpeed * Time.deltaTime;
-        keysPressed = true;
-    }
-
-    if (keysPressed)
-    {
-        rb.MoveRotation(targetAngle);
-        return; 
-    }
-
-    // Вращение МЫШЬЮ
-    Vector2 currentMousePos = Input.mousePosition;
-    if (Vector2.Distance(currentMousePos, lastMousePos) > 1f)
-    {
-        Vector3 mouseWorldPos = mainCamera.ScreenToWorldPoint(new Vector3(currentMousePos.x, currentMousePos.y, 10f));
-        Vector2 lookDir = (Vector2)mouseWorldPos - rb.position;
-
-        // "Мертвая зона" стала больше для стабильности
-        if (lookDir.sqrMagnitude > 0.5f) 
-        {
-            float angle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg;
-            rb.MoveRotation(angle - 90f);
-        }
-        lastMousePos = currentMousePos;
-    }
-}
-
-
-    private void RotateTowardsMouse()
-    {
-        Vector2 mouseWorldPos = mainCamera.ScreenToWorldPoint(Input.mousePosition);
-        Vector2 lookDir = mouseWorldPos - rb.position;
-
-        // ПРОВЕРКА 2: Не слишком ли близко мышь к игроку?
-        // Если расстояние меньше 0.5 единиц, не поворачиваемся (чтобы не крутиться на месте)
-        if (lookDir.sqrMagnitude > 0.2f) 
-        {
-            float angle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg;
-            rb.rotation = angle - 90f; 
-        }
-    }
-
-    private IEnumerator PerformSpinAttack()
-    {
-        isAttacking = true;
-        isSpinning = true;
-        lastAttackTime = Time.time;
-        
-        StartCoroutine(FlashSaber());
-
-        float elapsed = 0f;
-        while (elapsed < attackDuration)
-        {
-            elapsed += Time.deltaTime;
-            rb.rotation += (360f / attackDuration) * Time.deltaTime;
-            yield return null;
-        }
-
-        isAttacking = false;
-        isSpinning = false;
-    }
-
-    private IEnumerator FlashSaber()
-    {
-        SpriteRenderer saberSr = saberBlade.GetComponent<SpriteRenderer>();
-        if (saberSr == null) yield break;
-        Color originalColor = saberSr.color;
-        while (isSpinning)
-        {
-            saberSr.color = Color.white;
-            yield return new WaitForSeconds(0.05f);
-            saberSr.color = originalColor;
-            yield return new WaitForSeconds(0.05f);
-        }
-        saberSr.color = originalColor;
-    }
-
-    // Находим метод TakeDamage и Die и добавляем туда вызовы звуков
-    public void TakeDamage(string source = "Лазерный луч")
-    {
-        health--;
-        
-        // ЗВУК: Получение урона
-        if (health > 0 && AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlaySFX(AudioManager.Instance.jediHitSound);
-        }
-
-        if (UIManager.Instance != null) UIManager.Instance.UpdateHearts(health);
-        if (health <= 0) Die(source);
-    }
-
-    private void Die(string source)
-    {
-        // ЗВУК: Смерть джедая
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlaySFX(AudioManager.Instance.jediDeathSound);
-        }
-
-        gameObject.SetActive(false); 
-        if (GameManager.Instance != null) GameManager.Instance.GameOver(source);
-    }
-
-    private void UseForce()
-    {
-        if (forceSparksPrefab != null) Instantiate(forceSparksPrefab, transform.position, Quaternion.identity);
-        
-        Collider2D[] hitObjects = Physics2D.OverlapCircleAll(transform.position, ultimateRadius);
-        foreach (Collider2D hit in hitObjects)
-        {
-            // Теперь проверяем ТРИ условия: враги, черви и пули
-            if (hit.CompareTag("Enemy") || hit.CompareTag("Worm")) 
-            {
-                hit.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);
-            }
-            else if (hit.GetComponent<BlasterBolt>() != null) 
-            {
-                Destroy(hit.gameObject);
-            }
-        }
-    }
-}
-```
-
-# File: Assets/Scripts/Player/Lightsaber.cs
-```csharp
-using UnityEngine;
-
-public class Lightsaber : MonoBehaviour
-{
-    private JediController jedi;
-
-    void Start()
-    {
-        // ���� ������ ������ � ������������ �������
-        jedi = GetComponentInParent<JediController>();
-    }
-
-    void OnTriggerEnter2D(Collider2D other)
-    {
-        // ������� ����� ������ ���� ������ ������ � ��������� ��������� (isSpinning)
-        if (other.CompareTag("Enemy"))
-        {
-            if (jedi != null && jedi.isSpinning)
-            {
-                other.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);
-                Debug.Log("���� ���� �������� �������!");
-            }
-        }
-        
-        // ��������� ���� ��-�������� �������� ���� �� ���� � ������� ����, 
-        // ��� ��� ������ ����� ���������� ��������.
-    }
-}
+}-e 
 ```
 
 # File: Assets/Scripts/Projectiles/BlasterBolt.cs
@@ -5805,7 +6084,13 @@ public class BlasterBolt : MonoBehaviour
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
 
-    // Используем Awake вместо Start, так как Awake срабатывает мгновенно при создании объекта
+    [Header("Настройки Сока (Juice Settings)")]
+    public GameObject deflectSparkPrefab; // Префаб искр при отражении (можно использовать уменьшенные искры ульты)
+    public float knockbackStrength = 8f;   // Сила отдачи джедая назад
+    public float freezeDuration = 0.04f;   // Продолжительность микро-паузы (40 миллисекунд)
+    public float shakeDuration = 0.1f;     // Длина тряски камеры
+    public float shakeMagnitude = 0.15f;   // Сила тряски камеры
+
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -5814,7 +6099,6 @@ public class BlasterBolt : MonoBehaviour
 
     void Start()
     {
-        // Запускаем пулю вперед при создании
         if (rb != null)
         {
             rb.linearVelocity = transform.up * speed;
@@ -5822,39 +6106,41 @@ public class BlasterBolt : MonoBehaviour
         
         if (spriteRenderer != null)
         {
-            spriteRenderer.color = Color.red; // Изначально красная
+            spriteRenderer.color = Color.red; 
         }
     }
 
     void OnTriggerEnter2D(Collider2D hitInfo)
     {
-        // Проверяем теги
         if (hitInfo.CompareTag("Wall") || hitInfo.CompareTag("Perimeter"))
         {
             Destroy(gameObject);
         }
         else if (hitInfo.CompareTag("Lightsaber") && !isDeflected)
         {
-            Deflect(hitInfo.transform);
+            Deflect(hitInfo.transform, hitInfo);
         }
         else if (hitInfo.CompareTag("Player") && !isDeflected)
         {
-            // Урон игроку
             JediController jedi = hitInfo.GetComponent<JediController>();
-            if (jedi != null) jedi.TakeDamage("Штурмовик попал в цель впервые в истории Галактики");
-            Destroy(gameObject);
+            if (jedi != null) 
+            {
+                if (jedi.IsInvincible) return; 
+
+                // ПЕРЕДАЕМ transform.position пули для расчета направления отталкивания!
+                jedi.TakeDamage("Штурмовик попал в цель впервые в истории Галактики", transform.position);
+                Destroy(gameObject);
+            }
         }
         else if (hitInfo.CompareTag("Enemy") && isDeflected)
         {
-            // Урон врагу через SendMessage (универсально для всех типов штурмовиков)
             hitInfo.SendMessage("TakeDamage", SendMessageOptions.DontRequireReceiver);
             Destroy(gameObject);
         }
     }
 
-    public void Deflect(Transform saberTransform)
+    public void Deflect(Transform saberTransform, Collider2D saberCollider)
     {
-        // Если компоненты почему-то не нашлись в Awake, ищем их еще раз
         if (rb == null) rb = GetComponent<Rigidbody2D>();
         if (spriteRenderer == null) spriteRenderer = GetComponent<SpriteRenderer>();
 
@@ -5862,17 +6148,54 @@ public class BlasterBolt : MonoBehaviour
 
         if (spriteRenderer != null)
         {
-            spriteRenderer.color = Color.green; // Меняем цвет на зеленый
+            spriteRenderer.color = Color.green; 
         }
 
+        // ==========================================================
+        // 1. ФИЗИЧЕСКАЯ ОТДАЧА (KNOCKBACK)
+        // ==========================================================
+        JediController jedi = saberTransform.GetComponentInParent<JediController>();
+        if (jedi != null)
+        {
+            // Толкаем джедая назад, противоположно направлению меча
+            Vector2 pushDirection = -saberTransform.up;
+            jedi.ApplyKnockback(pushDirection, knockbackStrength);
+        }
+
+        // ==========================================================
+        // 2. СПАВН ИСКР В ТОЧКЕ КОНТАКТА
+        // ==========================================================
+        if (deflectSparkPrefab != null && saberCollider != null)
+        {
+            // Находим ближайшую точку на коллайдере меча к пуле
+            Vector3 contactPoint = saberCollider.bounds.ClosestPoint(transform.position);
+            Instantiate(deflectSparkPrefab, contactPoint, Quaternion.identity);
+        }
+
+        // ==========================================================
+        // 3. МИКРО-СТОП ВРЕМЕНИ (TIME FREEZE)
+        // ==========================================================
+        if (TimeFreeze.Instance != null)
+        {
+            TimeFreeze.Instance.Freeze(freezeDuration);
+        }
+
+        // ==========================================================
+        // 4. ТРЯСКА КАМЕРЫ (CAMERA SHAKE)
+        // ==========================================================
+        if (CameraFollow.Instance != null)
+        {
+            CameraFollow.Instance.Shake(shakeDuration, shakeMagnitude);
+        }
+
+        // Отражаем саму пулю
         if (rb != null)
         {
-            // Отражаем в сторону, куда смотрит меч, и ускоряем
-            rb.linearVelocity = saberTransform.up * (speed * 1.5f);
-            transform.up = saberTransform.up; 
+            rb.linearVelocity = saberTransform.right * (speed * 1.5f);
+            transform.up = saberTransform.right; 
         }
     }
-}
+}-e 
 ```
 
 # File: Assets/Scripts/Projectiles/Crystal.cs
@@ -5886,217 +6209,11 @@ public class Crystal : MonoBehaviour
         if (other.CompareTag("Player"))
         {
             GameManager.Instance.AddCrystal();
-            Destroy(gameObject); // �������� ������
+            Destroy(gameObject); // �������� ������
         }
     }
 }
-
-```
-
-# File: Assets/Scripts/UI/ButtonHoverScale.cs
-```csharp
-using UnityEngine;
-using UnityEngine.EventSystems; // ����� ��� ��������� ������� ����
-
-public class ButtonHoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
-{
-    [Header("��������� ��������")]
-    public float hoverScaleMultiplier = 1.1f; // �� ������� ���������� ������ (1.1 = +10%)
-    public float animationSpeed = 10f;        // �������� �������� ��������
-
-    private Vector3 originalScale;
-    private Vector3 targetScale;
-
-    void Start()
-    {
-        // ���������� ��������� ������ ������
-        originalScale = transform.localScale;
-        targetScale = originalScale;
-    }
-
-    void Update()
-    {
-        // ������ ������ ������� ������ � ��������
-        transform.localScale = Vector3.Lerp(transform.localScale, targetScale, Time.unscaledDeltaTime * animationSpeed);
-    }
-
-    // �����������, ����� ���� ������� � ���� ������
-    public void OnPointerEnter(PointerEventData eventData)
-    {
-        targetScale = originalScale * hoverScaleMultiplier;
-    }
-
-    // �����������, ����� ���� �������� ���� ������
-    public void OnPointerExit(PointerEventData eventData)
-    {
-        targetScale = originalScale;
-    }
-
-    // ���������� ������ ��� ���������� ������� (����� ������ �� �������� �������)
-    void OnDisable()
-    {
-        transform.localScale = originalScale;
-        targetScale = originalScale;
-    }
-}
-```
-
-# File: Assets/Scripts/UI/FloatingText.cs
-```csharp
-using UnityEngine;
-using TMPro;
-
-public class FloatingText : MonoBehaviour
-{
-    public float destroyTime = 2f;
-    public Vector3 offset = new Vector3(0, 1.5f, 0);
-    public float moveSpeed = 1f;
-
-    private TextMeshPro textMesh;
-    private Color textColor;
-
-    void Start()
-    {
-        textMesh = GetComponent<TextMeshPro>();
-        textColor = textMesh.color;
-        // ���������� ����� ���� ������
-        Destroy(gameObject, destroyTime);
-    }
-
-    void Update()
-    {
-        // ������ ������ �����
-        transform.position += Vector3.up * moveSpeed * Time.deltaTime;
-
-        // ������ �������� (Fade out)
-        float alpha = Mathf.Lerp(textColor.a, 0, (Time.deltaTime * (1f / destroyTime)) * 5f);
-        textColor.a -= Time.deltaTime / destroyTime;
-        textMesh.color = textColor;
-    }
-}
-```
-
-# File: Assets/Scripts/UI/GameOverPanel.cs
-```csharp
-using UnityEngine;
-using TMPro;
-
-public class GameOverPanel : MonoBehaviour
-{
-    public TextMeshProUGUI reasonText;
-    public TextMeshProUGUI levelReachedText;
-    
-    private TypewriterEffect typewriter;
-
-    public void Setup(string reason, int level)
-    {
-        // ��������: �������� �� ����� ������
-        if (levelReachedText != null)
-        {
-            levelReachedText.text = "�� �������� ������: " + level;
-        }
-        else 
-        {
-            Debug.LogError("GameOverPanel: �� ��������� ������ �� LevelReachedText!");
-        }
-
-        // ��������: �������� �� ����� �������
-        if (reasonText != null)
-        {
-            if (typewriter == null) 
-                typewriter = reasonText.GetComponent<TypewriterEffect>();
-
-            if (typewriter != null)
-            {
-                typewriter.StartTyping("�������: " + reason);
-            }
-            else
-            {
-                reasonText.text = "�������: " + reason;
-            }
-        }
-        else
-        {
-            Debug.LogError("GameOverPanel: �� ��������� ������ �� ReasonText!");
-        }
-    }
-
-    public void RestartBtn()
-    {
-        if (MenuController.Instance != null) MenuController.Instance.PlayButtonSound();
-        GameManager.Instance.StartNewGame();
-    }
-
-    public void MainMenuBtn()
-    {
-        if (MenuController.Instance != null) MenuController.Instance.PlayButtonSound();
-        MenuController.Instance.ShowMainMenu();
-    }
-}
-```
-
-# File: Assets/Scripts/UI/IntroCrawl.cs
-```csharp
-using UnityEngine;
-
-public class IntroCrawl : MonoBehaviour
-{
-    public RectTransform textTransform;
-    public float scrollSpeed = 60f; // 60-80 ������ ����� ��� ������
-    public float exitPositionY = 2500f; 
-
-    private bool isSkipping = false;
-    private float timer = 0f;
-    private float canSkipTime = 1.0f; 
-
-    void OnEnable()
-    {
-        // �����: 0 ��������, ��� ����� ������ ���������� �����.
-        // ���� ������ ��������� �����, ������� -100.
-        textTransform.anchoredPosition = new Vector2(0, 0f);
-        
-        isSkipping = false;
-        timer = 0f;
-        
-        // ����-�����: ���� ������ ������ 2000, �� �� ������ ��������� 
-        // ���� ������ + ������ ������ (�������� 1000).
-        // ��� ������� ���� �� ������� �������� � �����.
-        exitPositionY = textTransform.rect.height + 1200f;
-        
-        Debug.Log("�����: ������! ����� �������� �����.");
-    }
-
-    void Update()
-    {
-        timer += Time.unscaledDeltaTime;
-
-        // ��������
-        textTransform.anchoredPosition += Vector2.up * scrollSpeed * Time.unscaledDeltaTime;
-
-        // �������
-        if (timer > canSkipTime && !isSkipping)
-        {
-            // if (Input.anyKeyDown || Input.GetMouseButtonDown(0)) SkipIntro()
-            if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)) SkipIntro();
-        }
-        
-
-            // if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)) SkipIntro();
-        // ����������
-        if (textTransform.anchoredPosition.y > exitPositionY && !isSkipping)
-        {
-            SkipIntro();
-        }
-    }
-
-    void SkipIntro()
-    {
-        if (isSkipping) return;
-        isSkipping = true;
-        this.gameObject.SetActive(false);
-        if (GameManager.Instance != null) GameManager.Instance.StartLevel();
-    }
-}
+-e 
 ```
 
 # File: Assets/Scripts/UI/JokeManager.cs
@@ -6165,7 +6282,7 @@ public class JokeManager : MonoBehaviour
     {
         return (Random.value > 0.5f) ? GetRandomJoke() : GetRandomHint();
     }
-}
+}-e 
 ```
 
 # File: Assets/Scripts/UI/MainMenuPanel.cs
@@ -6187,7 +6304,192 @@ public class MainMenuPanel : MonoBehaviour
     {
         GameManager.Instance.StartNewGame(); 
     }
-}
+}-e 
+```
+
+# File: Assets/Scripts/UI/CameraShake.cs
+```csharp
+using UnityEngine;
+using System.Collections;
+
+public class CameraShake : MonoBehaviour
+{
+    public static CameraShake Instance;
+    private Vector3 originalPos;
+
+    void Awake()
+    {
+        if (Instance == null) Instance = this;
+    }
+
+    void OnEnable()
+    {
+        originalPos = transform.localPosition;
+    }
+
+    public void Shake(float duration, float magnitude)
+    {
+        StartCoroutine(ShakeRoutine(duration, magnitude));
+    }
+
+    private IEnumerator ShakeRoutine(float duration, float magnitude)
+    {
+        float elapsed = 0.0f;
+        while (elapsed < duration)
+        {
+            // UnscaledDeltaTime allows the camera to shake even during a Time Freeze
+            float x = Random.Range(-1f, 1f) * magnitude;
+            float y = Random.Range(-1f, 1f) * magnitude;
+
+            transform.localPosition = originalPos + new Vector3(x, y, 0);
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+        transform.localPosition = originalPos;
+    }
+}-e 
+```
+
+# File: Assets/Scripts/UI/GameOverPanel.cs
+```csharp
+using UnityEngine;
+using TMPro;
+
+public class GameOverPanel : MonoBehaviour
+{
+    public TextMeshProUGUI reasonText;
+    public TextMeshProUGUI levelReachedText;
+    
+    private TypewriterEffect typewriter;
+
+    public void Setup(string reason, int level)
+    {
+        // ��������: �������� �� ����� ������
+        if (levelReachedText != null)
+        {
+            levelReachedText.text = "�� �������� ������: " + level;
+        }
+        else 
+        {
+            Debug.LogError("GameOverPanel: �� ��������� ������ �� LevelReachedText!");
+        }
+
+        // ��������: �������� �� ����� �������
+        if (reasonText != null)
+        {
+            if (typewriter == null) 
+                typewriter = reasonText.GetComponent<TypewriterEffect>();
+
+            if (typewriter != null)
+            {
+                typewriter.StartTyping("�������: " + reason);
+            }
+            else
+            {
+                reasonText.text = "�������: " + reason;
+            }
+        }
+        else
+        {
+            Debug.LogError("GameOverPanel: �� ��������� ������ �� ReasonText!");
+        }
+    }
+
+    public void RestartBtn()
+    {
+        if (MenuController.Instance != null) MenuController.Instance.PlayButtonSound();
+        GameManager.Instance.StartNewGame();
+    }
+
+    public void MainMenuBtn()
+    {
+        if (MenuController.Instance != null) MenuController.Instance.PlayButtonSound();
+        MenuController.Instance.ShowMainMenu();
+    }
+}-e 
+```
+
+# File: Assets/Scripts/UI/FloatingText.cs
+```csharp
+using UnityEngine;
+using TMPro;
+
+public class FloatingText : MonoBehaviour
+{
+    public float destroyTime = 2f;
+    public Vector3 offset = new Vector3(0, 1.5f, 0);
+    public float moveSpeed = 1f;
+
+    private TextMeshPro textMesh;
+    private Color textColor;
+
+    void Start()
+    {
+        textMesh = GetComponent<TextMeshPro>();
+        textColor = textMesh.color;
+        // ���������� ����� ���� ������
+        Destroy(gameObject, destroyTime);
+    }
+
+    void Update()
+    {
+        // ������ ������ �����
+        transform.position += Vector3.up * moveSpeed * Time.deltaTime;
+
+        // ������ �������� (Fade out)
+        float alpha = Mathf.Lerp(textColor.a, 0, (Time.deltaTime * (1f / destroyTime)) * 5f);
+        textColor.a -= Time.deltaTime / destroyTime;
+        textMesh.color = textColor;
+    }
+}-e 
+```
+
+# File: Assets/Scripts/UI/ButtonHoverScale.cs
+```csharp
+using UnityEngine;
+using UnityEngine.EventSystems; // ����� ��� ��������� ������� ����
+
+public class ButtonHoverScale : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
+{
+    [Header("��������� ��������")]
+    public float hoverScaleMultiplier = 1.1f; // �� ������� ���������� ������ (1.1 = +10%)
+    public float animationSpeed = 10f;        // �������� �������� ��������
+
+    private Vector3 originalScale;
+    private Vector3 targetScale;
+
+    void Start()
+    {
+        // ���������� ��������� ������ ������
+        originalScale = transform.localScale;
+        targetScale = originalScale;
+    }
+
+    void Update()
+    {
+        // ������ ������ ������� ������ � ��������
+        transform.localScale = Vector3.Lerp(transform.localScale, targetScale, Time.unscaledDeltaTime * animationSpeed);
+    }
+
+    // �����������, ����� ���� ������� � ���� ������
+    public void OnPointerEnter(PointerEventData eventData)
+    {
+        targetScale = originalScale * hoverScaleMultiplier;
+    }
+
+    // �����������, ����� ���� �������� ���� ������
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        targetScale = originalScale;
+    }
+
+    // ���������� ������ ��� ���������� ������� (����� ������ �� �������� �������)
+    void OnDisable()
+    {
+        transform.localScale = originalScale;
+        targetScale = originalScale;
+    }
+}-e 
 ```
 
 # File: Assets/Scripts/UI/MenuController.cs
@@ -6285,58 +6587,7 @@ public class MenuController : MonoBehaviour
         PlayButtonSound(); // Добавляем звук при переключении
         showJokes = isOn;
     }
-}
-```
-
-# File: Assets/Scripts/UI/RetroTextEffect.cs
-```csharp
-using UnityEngine;
-using TMPro;
-
-public class RetroTextEffect : MonoBehaviour
-{
-    private TextMeshProUGUI textMesh;
-    public bool pulseScale = true;
-    public float pulseSpeed = 2f;
-    public float pulseAmount = 0.05f;
-
-    public bool flickerAlpha = true;
-
-    private Vector3 originalScale;
-
-    void Start()
-    {
-        textMesh = GetComponent<TextMeshProUGUI>();
-        originalScale = transform.localScale;
-    }
-
-    void Update()
-    {
-        // 1. ������ ��������� (������ ����������/����������)
-        if (pulseScale)
-        {
-            float scale = 1f + Mathf.Sin(Time.unscaledTime * pulseSpeed) * pulseAmount;
-            transform.localScale = originalScale * scale;
-        }
-
-        // 2. ������ �������� (�������� ������� ��������)
-        if (flickerAlpha)
-        {
-            if (Random.value > 0.98f) // ���� �� �������� ��������
-            {
-                StartCoroutine(FlickerRoutine());
-            }
-        }
-    }
-
-    System.Collections.IEnumerator FlickerRoutine()
-    {
-        Color c = textMesh.color;
-        textMesh.color = new Color(c.r, c.g, c.b, 0.7f); // ������ ��������
-        yield return new WaitForSeconds(0.05f);
-        textMesh.color = new Color(c.r, c.g, c.b, 1f); // ������������ � �����
-    }
-}
+}-e 
 ```
 
 # File: Assets/Scripts/UI/TransitionPanel.cs
@@ -6388,63 +6639,7 @@ public class TransitionPanel : MonoBehaviour
             GameManager.Instance.StartLevel();
         }
     }
-}
-```
-
-# File: Assets/Scripts/UI/TypewriterEffect.cs
-```csharp
-using UnityEngine;
-using TMPro;
-using System.Collections;
-
-public class TypewriterEffect : MonoBehaviour
-{
-    private TextMeshProUGUI textMesh;
-    public float typingSpeed = 0.05f; // �������� ������ (������ �� �����)
-    
-    private Coroutine typingCoroutine;
-
-    void Awake()
-    {
-        textMesh = GetComponent<TextMeshProUGUI>();
-    }
-
-    public void StartTyping(string fullText)
-    {
-        // ���� ��� ���-�� ���������� � �������������
-        if (typingCoroutine != null)
-            StopCoroutine(typingCoroutine);
-
-        typingCoroutine = StartCoroutine(TypeRoutine(fullText));
-    }
-
-    private IEnumerator TypeRoutine(string fullText)
-    {
-        textMesh.text = ""; // ������� ����� � ������
-        
-        // ���������� WaitForSecondsRealtime, ��� ��� �� ����� ���� ����� � ���� ����� ���� ����������� (Time.timeScale = 0)
-        foreach (char letter in fullText.ToCharArray())
-        {
-            textMesh.text += letter;
-            
-            // ���� ����� - ���� ����������, ������ ����� ���� ������ ��� ��������������
-            if (letter == '.' || letter == '!' || letter == '?')
-                yield return new WaitForSecondsRealtime(typingSpeed * 3);
-            else
-                yield return new WaitForSecondsRealtime(typingSpeed);
-        }
-
-        typingCoroutine = null;
-    }
-    
-    // ����� ��� ����������� ���������� (���� ����� ����� "����������")
-    public void Skip(string fullText)
-    {
-        StopAllCoroutines();
-        textMesh.text = fullText;
-        typingCoroutine = null;
-    }
-}
+}-e 
 ```
 
 # File: Assets/Scripts/UI/VictoryPanel.cs
@@ -6483,349 +6678,284 @@ public class VictoryPanel : MonoBehaviour
     {
         Application.Quit();
     }
-}
+}-e 
 ```
 
-# File: Assets/Scripts/Core/AudioManager.cs
+# File: Assets/Scripts/UI/TypewriterEffect.cs
+```csharp
+using UnityEngine;
+using TMPro;
+using System.Collections;
+
+public class TypewriterEffect : MonoBehaviour
+{
+    private TextMeshProUGUI textMesh;
+    public float typingSpeed = 0.05f; // �������� ������ (������ �� �����)
+    
+    private Coroutine typingCoroutine;
+
+    void Awake()
+    {
+        textMesh = GetComponent<TextMeshProUGUI>();
+    }
+
+    public void StartTyping(string fullText)
+    {
+        // ���� ��� ���-�� ���������� � �������������
+        if (typingCoroutine != null)
+            StopCoroutine(typingCoroutine);
+
+        typingCoroutine = StartCoroutine(TypeRoutine(fullText));
+    }
+
+    private IEnumerator TypeRoutine(string fullText)
+    {
+        textMesh.text = ""; // ������� ����� � ������
+        
+        // ���������� WaitForSecondsRealtime, ��� ��� �� ����� ���� ����� � ���� ����� ���� ����������� (Time.timeScale = 0)
+        foreach (char letter in fullText.ToCharArray())
+        {
+            textMesh.text += letter;
+            
+            // ���� ����� - ���� ����������, ������ ����� ���� ������ ��� ��������������
+            if (letter == '.' || letter == '!' || letter == '?')
+                yield return new WaitForSecondsRealtime(typingSpeed * 3);
+            else
+                yield return new WaitForSecondsRealtime(typingSpeed);
+        }
+
+        typingCoroutine = null;
+    }
+    
+    // ����� ��� ����������� ���������� (���� ����� ����� "����������")
+    public void Skip(string fullText)
+    {
+        StopAllCoroutines();
+        textMesh.text = fullText;
+        typingCoroutine = null;
+    }
+}-e 
+```
+
+# File: Assets/Scripts/UI/RetroTextEffect.cs
+```csharp
+using UnityEngine;
+using TMPro;
+
+public class RetroTextEffect : MonoBehaviour
+{
+    private TextMeshProUGUI textMesh;
+    public bool pulseScale = true;
+    public float pulseSpeed = 2f;
+    public float pulseAmount = 0.05f;
+
+    public bool flickerAlpha = true;
+
+    private Vector3 originalScale;
+
+    void Start()
+    {
+        textMesh = GetComponent<TextMeshProUGUI>();
+        originalScale = transform.localScale;
+    }
+
+    void Update()
+    {
+        // 1. ������ ��������� (������ ����������/����������)
+        if (pulseScale)
+        {
+            float scale = 1f + Mathf.Sin(Time.unscaledTime * pulseSpeed) * pulseAmount;
+            transform.localScale = originalScale * scale;
+        }
+
+        // 2. ������ �������� (�������� ������� ��������)
+        if (flickerAlpha)
+        {
+            if (Random.value > 0.98f) // ���� �� �������� ��������
+            {
+                StartCoroutine(FlickerRoutine());
+            }
+        }
+    }
+
+    System.Collections.IEnumerator FlickerRoutine()
+    {
+        Color c = textMesh.color;
+        textMesh.color = new Color(c.r, c.g, c.b, 0.7f); // ������ ��������
+        yield return new WaitForSeconds(0.05f);
+        textMesh.color = new Color(c.r, c.g, c.b, 1f); // ������������ � �����
+    }
+}-e 
+```
+
+# File: Assets/Scripts/UI/TimeFreeze.cs
+```csharp
+using UnityEngine;
+using System.Collections;
+
+public class TimeFreeze : MonoBehaviour
+{
+    public static TimeFreeze Instance;
+    private bool isFreezing = false;
+
+    void Awake()
+    {
+        if (Instance == null) Instance = this;
+    }
+
+    public void Freeze(float duration)
+    {
+        if (isFreezing) return;
+        StartCoroutine(FreezeRoutine(duration));
+    }
+
+    private IEnumerator FreezeRoutine(float duration)
+    {
+        isFreezing = true;
+        Time.timeScale = 0f;
+        
+        // Wait using real-world seconds, ignoring the frozen time scale
+        yield return new WaitForSecondsRealtime(duration);
+        
+        Time.timeScale = 1f;
+        isFreezing = false;
+    }
+}-e 
+```
+
+# File: Assets/Scripts/UI/IntroCrawl.cs
 ```csharp
 using UnityEngine;
 
-public class AudioManager : MonoBehaviour
+public class IntroCrawl : MonoBehaviour
 {
-    public static AudioManager Instance;
+    public RectTransform textTransform;
+    public float scrollSpeed = 60f; // 60-80 ������ ����� ��� ������
+    public float exitPositionY = 2500f; 
 
-    [Header("Audio Sources")]
-    [SerializeField] private AudioSource sfxSource;
+    private bool isSkipping = false;
+    private float timer = 0f;
+    private float canSkipTime = 1.0f; 
 
-    [Header("UI Sounds")]
-    public AudioClip clickSound;
-
-    [Header("Game State Sounds")]
-    public AudioClip winSound;
-    public AudioClip gameOverSound;
-
-    [Header("Jedi Sounds")]
-    public AudioClip crystalTakenSound;
-    public AudioClip jediHitSound;
-    public AudioClip jediDeathSound;
-
-    [Header("Enemy Sounds")]
-    public AudioClip stormtrooperShootSound;
-    public AudioClip stormtrooperDeathSound;
-    public AudioClip sandwormRoarSound;
-
-    void Awake()
+    void OnEnable()
     {
-        // ���������� ���������
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
+        // �����: 0 ��������, ��� ����� ������ ���������� �����.
+        // ���� ������ ��������� �����, ������� -100.
+        textTransform.anchoredPosition = new Vector2(0, 0f);
+        
+        isSkipping = false;
+        timer = 0f;
+        
+        // ����-�����: ���� ������ ������ 2000, �� �� ������ ��������� 
+        // ���� ������ + ������ ������ (�������� 1000).
+        // ��� ������� ���� �� ������� �������� � �����.
+        exitPositionY = textTransform.rect.height + 1200f;
+        
+        Debug.Log("�����: ������! ����� �������� �����.");
+    }
 
-        // ������� AudioSource, ���� �� �� ����������
-        if (sfxSource == null)
+    void Update()
+    {
+        timer += Time.unscaledDeltaTime;
+
+        // ��������
+        textTransform.anchoredPosition += Vector2.up * scrollSpeed * Time.unscaledDeltaTime;
+
+        // �������
+        if (timer > canSkipTime && !isSkipping)
         {
-            sfxSource = gameObject.AddComponent<AudioSource>();
+            // if (Input.anyKeyDown || Input.GetMouseButtonDown(0)) SkipIntro()
+            if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)) SkipIntro();
+        }
+        
+
+            // if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0)) SkipIntro();
+        // ����������
+        if (textTransform.anchoredPosition.y > exitPositionY && !isSkipping)
+        {
+            SkipIntro();
         }
     }
 
-    // ������������� ����� ��� ������������ SFX
-    public void PlaySFX(AudioClip clip)
+    void SkipIntro()
     {
-        if (clip != null)
-        {
-            sfxSource.PlayOneShot(clip);
-        }
+        if (isSkipping) return;
+        isSkipping = true;
+        this.gameObject.SetActive(false);
+        if (GameManager.Instance != null) GameManager.Instance.StartLevel();
     }
-
-    // ������� ����� ��� �����
-    public void PlayClick()
-    {
-        PlaySFX(clickSound);
-    }
-}
+}-e 
 ```
 
-# File: Assets/Scripts/Core/FinishPoint.cs
+# File: Assets/Scripts/UI/CameraFollow.cs
 ```csharp
-﻿using UnityEngine;
-
-public class FinishPoint : MonoBehaviour
-{
-    void OnTriggerEnter2D(Collider2D other)
-    {
-        // ПРОВЕРКА: Только если вошел объект с тегом Player
-        if (other.CompareTag("Player"))
-        {
-            Debug.Log("<color=green>ДЖЕДАЙ НА ФИНИШЕ!</color>");
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.LevelCompleted();
-            }
-        }
-        // Пули и враги теперь будут игнорироваться
-    }
-
-    void OnDrawGizmos()
-    {
-        Gizmos.color = Color.red;
-        BoxCollider2D collider = GetComponent<BoxCollider2D>();
-        if (collider != null) Gizmos.DrawWireCube(transform.position, collider.size);
-    }
-}
-```
-
-# File: Assets/Scripts/Core/GameManager.cs
-```csharp
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections;
 
-public class GameManager : MonoBehaviour
+public class CameraFollow : MonoBehaviour
 {
-    public static GameManager Instance;
+    public static CameraFollow Instance;
 
-    [Header("Основные параметры")]
-    public int currentLevel = 1;
-    public int playerHealth = 3;
-    public int crystals = 0;
-    public LevelGenerator generator;
+    public Transform target;
+    public float smoothSpeed = 5f;
+    public Vector3 offset = new Vector3(0, 0, -10);
 
-    [Header("Настройки Игры")]
-    public int winLevel = 15; 
-    public int totalEasterEggs = 5; 
-    public int collectedEasterEggs = 0; 
-
-    public delegate void UltimateAction();
-    public static event UltimateAction OnUltimateUsed;
-
-    [Header("Задержка смерти")]
-    public float gameOverDelay = 2.0f;
-
-    private string lastDeathReason = "";
-    [Header("Пасхалки (Ключи Холлидея)")]
-    public bool hasCopperKey = false;   // Ключ за зачистку 10+ уровня
-    public bool hasJadeKey = false;     // Ключ за победу над Червем
-    public bool hasCrystalKey = false;  // Ключ за секретную дискету
-
-    // Метод получения ключа
-    public void CollectKey(int keyIndex, string keyName)
-    {
-        if (keyIndex == 1 && !hasCopperKey) hasCopperKey = true;
-        else if (keyIndex == 2 && !hasJadeKey) hasJadeKey = true;
-        else if (keyIndex == 3 && !hasCrystalKey) hasCrystalKey = true;
-        else return;
-
-        // ОБНОВЛЯЕМ UI
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.UpdateKeys(hasCopperKey, hasJadeKey, hasCrystalKey);
-        }
-
-        // Звуки и туториалы (как были раньше)
-        if (TutorialManager.Instance != null)
-            TutorialManager.Instance.ShowTutorial("<color=yellow>КЛЮЧ ПОЛУЧЕН!</color>\n" + keyName);
-        
-        if (AudioManager.Instance != null)
-            AudioManager.Instance.PlaySFX(AudioManager.Instance.winSound);
-    }
-        // Проверка на уничтожение всех врагов (для Медного ключа)
-    public void CheckEnemyCount()
-    {
-        // Условие: Уровень 10 или выше и ключа еще нет
-        if (currentLevel >= 10 && !hasCopperKey)
-        {
-            // Считаем всех врагов на сцене
-            GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
-            
-            // Если остался всего один (тот, который сейчас умирает), значит уровень зачищен
-            if (enemies.Length <= 1)
-            {
-                CollectKey(1, "Медный ключ (Зачистка 10+ уровня)");
-            }
-        }
-    }
+    private Vector3 shakeOffset = Vector3.zero;
 
     void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-        }
+        if (Instance == null) Instance = this;
     }
 
     void Start()
     {
-        if (MenuController.Instance != null) 
-        {
-            MenuController.Instance.ShowMainMenu();
-        }
-    }
-    
-    public void PrepareNewGame()
-    {
-        currentLevel = 1;
-        playerHealth = 3;
-        crystals = 0;
-        collectedEasterEggs = 0;
-        
-        // СБРОС КЛЮЧЕЙ
-        hasCopperKey = false;
-        hasJadeKey = false;
-        hasCrystalKey = false;
+        FindPlayerTarget();
     }
 
-    public void StartNewGame()
+    void LateUpdate()
     {
-        currentLevel = 1;
-        playerHealth = 3;
-        crystals = 0;
-        collectedEasterEggs = 0;
-        StartLevel();
-    }
-
-    public void StartLevel()
-    {
-        Time.timeScale = 1; 
-        playerHealth = 3; 
-        
-        if (MenuController.Instance != null) MenuController.Instance.HideAll();
-        
-        if (generator == null) generator = Object.FindAnyObjectByType<LevelGenerator>();
-        if (generator != null) generator.Generate(currentLevel);
-        
-        if (currentLevel == 1)
+        if (target == null)
         {
-            Invoke("ShowFirstTutorial", 2f);
+            FindPlayerTarget();
+            return;
         }
 
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.UpdateLevel(currentLevel);
-            UIManager.Instance.UpdateHearts(playerHealth);
-            UIManager.Instance.UpdateCrystals(crystals);
-            UIManager.Instance.UpdateKeys(hasCopperKey, hasJadeKey, hasCrystalKey);
+        // Объединяем целевую позицию слежения и текущее смещение от тряски
+        Vector3 desiredPosition = target.position + offset + shakeOffset;
+        transform.position = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed * Time.deltaTime);
+    }
 
+    private void FindPlayerTarget()
+    {
+        GameObject player = GameObject.FindWithTag("Player");
+        if (player != null)
+        {
+            target = player.transform;
+            transform.position = target.position + offset;
         }
     }
 
-    void ShowFirstTutorial()
+    // Вызываем этот метод из BlasterBolt для тряски камеры
+    public void Shake(float duration, float magnitude)
     {
-        if (TutorialManager.Instance != null)
-            TutorialManager.Instance.ShowTutorial("МЫШЬ/стрелки: Вращение\nWASD: Движение");
-        
-        Invoke("ShowSecondTutorial", 5f);
+        StartCoroutine(ShakeRoutine(duration, magnitude));
     }
 
-    void ShowSecondTutorial()
+    private IEnumerator ShakeRoutine(float duration, float magnitude)
     {
-        TutorialManager.Instance.ShowTutorial("ОТРАЖАЙ пули мечом или нажми Е для удара");
-    }
-
-        // В GameManager.cs добавь этот метод для проверки всех ключей
-    public bool IsTrueVictory()
-    {
-        return hasCopperKey && hasJadeKey && hasCrystalKey;
-    }
-
-    // Измени метод LevelCompleted, чтобы он учитывал ключи
-    public void LevelCompleted()
-    {
-        Time.timeScale = 0; 
-        SaveMyRecord();
-
-        if (currentLevel >= winLevel)
+        float elapsed = 0.0f;
+        while (elapsed < duration)
         {
-            // ЗВУК: Эпичная победа
-            if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(AudioManager.Instance.winSound);
-            
-            // ПРОВЕРКА: Если собраны все ключи, вызываем "Истинную победу"
-            if (IsTrueVictory())
-            {
-                MenuController.Instance.ShowVictory(3, 3); // Передаем 3 из 3 пасхалок
-            }
-            else
-            {
-                MenuController.Instance.ShowVictory(0, 3); // Обычная победа без пасхалок
-            }
+            float x = Random.Range(-1f, 1f) * magnitude;
+            float y = Random.Range(-1f, 1f) * magnitude;
+
+            shakeOffset = new Vector3(x, y, 0);
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
         }
-        else
-        {
-            currentLevel++;
-            MenuController.Instance.ShowTransition(currentLevel);
-        }
+        shakeOffset = Vector3.zero;
     }
-
-    public void GameOver(string reason)
-    {
-        SaveMyRecord();
-        // ЗВУК: Конец игры
-        if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(AudioManager.Instance.gameOverSound);
-        StartCoroutine(GameOverRoutine(reason));
-    }
-
-    private IEnumerator GameOverRoutine(string reason)
-    {
-        yield return new WaitForSecondsRealtime(gameOverDelay);
-        Time.timeScale = 0;
-        if (MenuController.Instance != null) 
-            MenuController.Instance.ShowGameOver(reason, currentLevel);
-    }
-
-    private void SaveMyRecord()
-    {
-        int lastRecord = PlayerPrefs.GetInt("Record", 0);
-        if (currentLevel > lastRecord)
-        {
-            PlayerPrefs.SetInt("Record", currentLevel);
-            PlayerPrefs.Save();
-        }
-    }
-    
-
-    // ==========================================
-    // ЛОГИКА СБОРА
-    // ==========================================
-
-    public void AddCrystal()
-    {
-        if (crystals < 3)
-        {
-            crystals++;
-            // ЗВУК: Кристалл поднят
-            if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(AudioManager.Instance.crystalTakenSound);
-            
-            if (UIManager.Instance != null) UIManager.Instance.UpdateCrystals(crystals);
-        }
-    }
-
-    public bool TryUseUltimate()
-    {
-        if (crystals >= 3)
-        {
-            crystals = 0;
-            if (UIManager.Instance != null) UIManager.Instance.UpdateCrystals(crystals);
-            if (OnUltimateUsed != null) OnUltimateUsed(); 
-            return true;
-        }
-        return false;
-    }
-
-    public void AddEasterEgg()
-    {
-        collectedEasterEggs++;
-    }
-}
+}-e 
 ```
 
 # File: Assets/Scripts/Core/LevelGenerator.cs
@@ -7094,76 +7224,7 @@ public class LevelGenerator : MonoBehaviour
             foreach (GameObject obj in objects) Destroy(obj);
         }
     }
-}
-```
-
-# File: Assets/Scripts/Core/TutorialManager.cs
-```csharp
-using UnityEngine;
-using TMPro;
-using System.Collections;
-
-public class TutorialManager : MonoBehaviour
-{
-    public static TutorialManager Instance;
-
-    public RectTransform tutorialPanel;
-    public TextMeshProUGUI tutorialText;
-    public float displayDuration = 4f;
-    public float slideSpeed = 0.5f;
-
-    [Header("���������� (������ �� RectTransform)")]
-    public Vector2 hiddenPos; // ������� �� �������
-    public Vector2 visiblePos; // ������� �� ������
-
-    void Awake()
-    {
-        Instance = this;
-        // ��� ������ �������������� ������ ������
-        if(tutorialPanel != null) tutorialPanel.anchoredPosition = hiddenPos;
-    }
-
-    [ContextMenu("Test Show")] // ����� ������ ������ ������� �� ��������� � ����������
-    public void TestShow()
-    {
-        ShowTutorial("�������� ���������: ��� ������!");
-    }
-
-    public void ShowTutorial(string message)
-    {
-        if (tutorialPanel == null) return;
-        StopAllCoroutines();
-        StartCoroutine(TutorialRoutine(message));
-    }
-
-    IEnumerator TutorialRoutine(string message)
-    {
-        tutorialText.text = message;
-
-        // �����
-        float elapsed = 0;
-        while (elapsed < slideSpeed)
-        {
-            tutorialPanel.anchoredPosition = Vector2.Lerp(hiddenPos, visiblePos, elapsed / slideSpeed);
-            elapsed += Time.unscaledDeltaTime;
-            yield return null;
-        }
-        tutorialPanel.anchoredPosition = visiblePos;
-
-        // �������� (���� ����� ������)
-        yield return new WaitForSecondsRealtime(displayDuration);
-
-        // ����
-        elapsed = 0;
-        while (elapsed < slideSpeed)
-        {
-            tutorialPanel.anchoredPosition = Vector2.Lerp(visiblePos, hiddenPos, elapsed / slideSpeed);
-            elapsed += Time.unscaledDeltaTime;
-            yield return null;
-        }
-        tutorialPanel.anchoredPosition = hiddenPos;
-    }
-}
+}-e 
 ```
 
 # File: Assets/Scripts/Core/UIManager.cs
@@ -7238,64 +7299,1413 @@ public class UIManager : MonoBehaviour
                 hearts[i].sprite = emptyHeart;
         }
     }
+}-e 
+```
+
+# File: Assets/Scripts/Core/FinishPoint.cs
+```csharp
+﻿using UnityEngine;
+
+public class FinishPoint : MonoBehaviour
+{
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        // ПРОВЕРКА: Только если вошел объект с тегом Player
+        if (other.CompareTag("Player"))
+        {
+            Debug.Log("<color=green>ДЖЕДАЙ НА ФИНИШЕ!</color>");
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.LevelCompleted();
+            }
+        }
+        // Пули и враги теперь будут игнорироваться
+    }
+
+    void OnDrawGizmos()
+    {
+        Gizmos.color = Color.red;
+        BoxCollider2D collider = GetComponent<BoxCollider2D>();
+        if (collider != null) Gizmos.DrawWireCube(transform.position, collider.size);
+    }
+}-e 
+```
+
+# File: Assets/Scripts/Core/AudioManager.cs
+```csharp
+using UnityEngine;
+
+public class AudioManager : MonoBehaviour
+{
+    public static AudioManager Instance;
+
+    [Header("Audio Sources")]
+    [SerializeField] private AudioSource sfxSource;
+
+    [Header("UI Sounds")]
+    public AudioClip clickSound;
+
+    [Header("Game State Sounds")]
+    public AudioClip winSound;
+    public AudioClip gameOverSound;
+
+    [Header("Jedi Sounds")]
+    public AudioClip crystalTakenSound;
+    public AudioClip jediHitSound;
+    public AudioClip jediDeathSound;
+
+    [Header("Enemy Sounds")]
+    public AudioClip stormtrooperShootSound;
+    public AudioClip stormtrooperDeathSound;
+    public AudioClip sandwormRoarSound;
+
+    void Awake()
+    {
+        // ���������� ���������
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        // ������� AudioSource, ���� �� �� ����������
+        if (sfxSource == null)
+        {
+            sfxSource = gameObject.AddComponent<AudioSource>();
+        }
+    }
+
+    // ������������� ����� ��� ������������ SFX
+    public void PlaySFX(AudioClip clip)
+    {
+        if (clip != null)
+        {
+            sfxSource.PlayOneShot(clip);
+        }
+    }
+
+    // ������� ����� ��� �����
+    public void PlayClick()
+    {
+        PlaySFX(clickSound);
+    }
+}-e 
+```
+
+# File: Assets/Scripts/Core/Generation/DungeonSpawner.cs
+```csharp
+using UnityEngine;
+using UnityEngine.Tilemaps;
+using System.Collections.Generic;
+
+public static class DungeonSpawner
+{
+    // Главный метод наполнения сцены объектами (только штурмовики, кристаллы, финиш и дискета)
+    public static void SpawnEntities(DungeonState state, DungeonConfig config, Tilemap floorTilemap, GameObject playerReference)
+    {
+        if (state.rooms.Count == 0) return;
+
+        // 1. Позиционирование джедая в центре Комнаты 0
+        Vector3 playerPos = floorTilemap.GetCellCenterWorld(new Vector3Int(state.rooms[0].center.x, state.rooms[0].center.y, 0));
+        if (playerReference != null)
+        {
+            playerReference.SetActive(true);
+            playerReference.transform.position = playerPos;
+
+            JediController jedi = playerReference.GetComponent<JediController>();
+            if (jedi != null) jedi.health = 3;
+        }
+
+        // 2. Нахождение дальней комнаты для Портала финиша
+        RoomData exitRoom = DijkstraPathfinder.FindExitRoom(state);
+        if (exitRoom == null) return;
+
+        Vector3 finishPos = floorTilemap.GetCellCenterWorld(new Vector3Int(exitRoom.center.x, exitRoom.center.y, 0));
+        if (config.finishPrefab != null)
+        {
+            GameObject finish = SpawnObject(state, config.finishPrefab, finishPos);
+
+            // Если это финальный 15-й уровень и пройдена истинная победа (все 3 Ключа Холлидея собраны)
+            if (state.currentLevel == 15 && GameManager.Instance != null && GameManager.Instance.IsTrueVictory())
+            {
+                SpriteRenderer sr = finish.GetComponent<SpriteRenderer>();
+                if (sr != null) sr.color = new Color(1, 0.84f, 0); // Золотой флаг
+                finish.transform.localScale *= 1.5f;
+            }
+        }
+
+        // 3. Заселение промежуточных комнат стражей и кристаллами
+        for (int i = 1; i < state.rooms.Count; i++)
+        {
+            RoomData room = state.rooms[i];
+            bool isExitRoom = (room.id == exitRoom.id);
+            bool hasCrystal = state.prng.NextDouble() < config.crystalSpawnChance;
+            int guardCount = 0;
+
+            if (hasCrystal && config.crystalPrefab != null && !isExitRoom)
+            {
+                Vector3 crystalPos = floorTilemap.GetCellCenterWorld(new Vector3Int(room.center.x, room.center.y, 0));
+                SpawnObject(state, config.crystalPrefab, crystalPos);
+                guardCount = state.prng.Next(4, 6); // Укрепленная стража кристалла
+            }
+            else
+            {
+                guardCount = state.prng.Next(1, 3); // Обычная комнатная стража
+            }
+
+            // Спавним штурмовиков в комнате
+            for (int j = 0; j < guardCount; j++)
+            {
+                Vector3 spawnPos = GetRandomFloorInRoom(state, room, floorTilemap);
+                GameObject trooperToSpawn = (state.prng.NextDouble() < 0.3f && config.eliteStormtrooperPrefab != null) 
+                    ? config.eliteStormtrooperPrefab 
+                    : config.stormtrooperPrefab;
+
+                if (trooperToSpawn != null && spawnPos != Vector3.zero)
+                {
+                    SpawnObject(state, trooperToSpawn, spawnPos);
+                    
+                    // Инкрементируем счетчик живых врагов в GameManager
+                    if (GameManager.Instance != null)
+                    {
+                        GameManager.Instance.activeEnemyCount++;
+                    }
+                }
+            }
+        }
+
+        // 4. Секретный Квест: Дискета Холлидея на 7 уровне
+        if (state.currentLevel == 7 && GameManager.Instance != null && !GameManager.Instance.hasCrystalKey && config.diskettePrefab != null)
+        {
+            int disketteRoomIndex = state.prng.Next(1, state.rooms.Count);
+            Vector3 diskettePos = floorTilemap.GetCellCenterWorld(new Vector3Int(state.rooms[disketteRoomIndex].center.x, state.rooms[disketteRoomIndex].center.y, 0));
+            SpawnObject(state, config.diskettePrefab, diskettePos);
+            Debug.Log("<color=cyan>СЕКРЕТ: Дискета Холлидея появилась в лабиринте на уровне 7!</color>");
+        }
+
+        // 5. Спавн патрулей в коридорах
+        SpawnCorridorPatrols(state, config, floorTilemap);
+    }
+
+    private static void SpawnCorridorPatrols(DungeonState state, DungeonConfig config, Tilemap floorTilemap)
+    {
+        if (config.stormtrooperPrefab == null) return;
+
+        List<Vector2Int> corridorTiles = new List<Vector2Int>();
+        for (int x = 0; x < state.mapWidth; x++)
+        {
+            for (int y = 0; y < state.mapHeight; y++)
+            {
+                if (state.grid[x, y] == DungeonTile.Corridor && state.dijkstraMap[x, y] > 0)
+                {
+                    corridorTiles.Add(new Vector2Int(x, y));
+                }
+            }
+        }
+
+        int patrolCount = Mathf.RoundToInt(corridorTiles.Count * 0.02f);
+        for (int i = 0; i < patrolCount; i++)
+        {
+            if (corridorTiles.Count == 0) break;
+
+            int randomIndex = state.prng.Next(corridorTiles.Count);
+            Vector2Int tileCoords = corridorTiles[randomIndex];
+
+            Vector3 spawnPos = floorTilemap.GetCellCenterWorld(new Vector3Int(tileCoords.x, tileCoords.y, 0));
+            SpawnObject(state, config.stormtrooperPrefab, spawnPos);
+            
+            // Инкрементируем счетчик живых патрульных в GameManager
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.activeEnemyCount++;
+            }
+            corridorTiles.RemoveAt(randomIndex); 
+        }
+    }
+
+    private static Vector3 GetRandomFloorInRoom(DungeonState state, RoomData room, Tilemap floorTilemap)
+    {
+        int rx = state.prng.Next(room.x + 1, room.x + room.width - 1);
+        int ry = state.prng.Next(room.y + 1, room.y + room.height - 1);
+
+        rx = Mathf.Clamp(rx, 2, state.mapWidth - 2);
+        ry = Mathf.Clamp(ry, 2, state.mapHeight - 2);
+
+        return floorTilemap.GetCellCenterWorld(new Vector3Int(rx, ry, 0));
+    }
+
+    private static GameObject SpawnObject(DungeonState state, GameObject prefab, Vector3 position)
+    {
+        GameObject obj = Object.Instantiate(prefab, position, Quaternion.identity);
+        state.spawnedEntities.Add(obj);
+        return obj;
+    }
 }
+-e 
+```
+
+# File: Assets/Scripts/Core/Generation/DungeonLayoutGenerator.cs
+```csharp
+using UnityEngine;
+using System.Collections.Generic;
+
+public static class DungeonLayoutGenerator
+{
+    // Расстановка прямоугольных комнат на карте без пересечений
+    public static void PlaceRooms(DungeonState state, DungeonConfig config, int targetRoomCount)
+    {
+        int attempts = 0;
+        int maxAttempts = 2000;
+        int roomId = 0;
+
+        while (state.rooms.Count < targetRoomCount && attempts < maxAttempts)
+        {
+            attempts++;
+
+            int w = state.prng.Next(config.minRoomSize, config.maxRoomSize + 1);
+            int h = state.prng.Next(config.minRoomSize, config.maxRoomSize + 1);
+
+            // Оставляем рамку в 3 тайла у краев карты для стен
+            int x = state.prng.Next(3, state.mapWidth - w - 3);
+            int y = state.prng.Next(3, state.mapHeight - h - 3);
+
+            RoomData newRoom = new RoomData(roomId, x, y, w, h);
+
+            bool overlaps = false;
+            foreach (var room in state.rooms)
+            {
+                if (newRoom.Overlaps(room, config.roomPadding))
+                {
+                    overlaps = true;
+                    break;
+                }
+            }
+
+            if (!overlaps)
+            {
+                state.rooms.Add(newRoom);
+                CarveRoom(state, newRoom);
+                roomId++;
+            }
+        }
+    }
+
+    private static void CarveRoom(DungeonState state, RoomData room)
+    {
+        for (int x = room.x; x < room.x + room.width; x++)
+        {
+            for (int y = room.y; y < room.y + room.height; y++)
+            {
+                state.grid[x, y] = DungeonTile.Floor;
+            }
+        }
+    }
+
+    // Соединение комнат коридорами по алгоритму Прима (MST) с добавлением петель
+    public static void ConnectRooms(DungeonState state, DungeonConfig config)
+    {
+        if (state.rooms.Count < 2) return;
+
+        // Находим все потенциальные связи между комнатами
+        List<DungeonEdge> allPossibleEdges = new List<DungeonEdge>();
+        for (int i = 0; i < state.rooms.Count; i++)
+        {
+            for (int j = i + 1; j < state.rooms.Count; j++)
+            {
+                float dist = Vector2.Distance(state.rooms[i].center, state.rooms[j].center);
+                allPossibleEdges.Add(new DungeonEdge(i, j, dist));
+            }
+        }
+
+        List<DungeonEdge> activeEdges = new List<DungeonEdge>();
+        HashSet<int> reached = new HashSet<int>() { 0 };
+        HashSet<int> unreached = new HashSet<int>();
+        for (int i = 1; i < state.rooms.Count; i++) unreached.Add(i);
+
+        // Алгоритм Прима для гарантированного связывания без разрывов
+        while (unreached.Count > 0)
+        {
+            DungeonEdge bestEdge = default;
+            float minDist = float.MaxValue;
+            bool found = false;
+
+            foreach (var edge in allPossibleEdges)
+            {
+                bool hasA = reached.Contains(edge.roomA);
+                bool hasB = reached.Contains(edge.roomB);
+
+                if ((hasA && !hasB) || (!hasA && hasB))
+                {
+                    if (edge.distance < minDist)
+                    {
+                        minDist = edge.distance;
+                        bestEdge = edge;
+                        found = true;
+                    }
+                }
+            }
+
+            if (found)
+            {
+                activeEdges.Add(bestEdge);
+                reached.Add(bestEdge.roomA);
+                reached.Add(bestEdge.roomB);
+                unreached.Remove(bestEdge.roomA);
+                unreached.Remove(bestEdge.roomB);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        // Выделяем неиспользованные в остове ребра
+        List<DungeonEdge> unusedEdges = new List<DungeonEdge>();
+        foreach (var edge in allPossibleEdges)
+        {
+            if (!activeEdges.Contains(edge))
+            {
+                unusedEdges.Add(edge);
+            }
+        }
+
+        // Перемешиваем неиспользованные связи PRNG
+        for (int i = unusedEdges.Count - 1; i > 0; i--)
+        {
+            int k = state.prng.Next(i + 1);
+            var temp = unusedEdges[i];
+            unusedEdges[i] = unusedEdges[k];
+            unusedEdges[k] = temp;
+        }
+
+        // Добавляем обратно 12% неиспользованных ребер для создания нелинейных петель
+        int loopsToAdd = Mathf.Clamp(Mathf.RoundToInt(unusedEdges.Count * 0.12f), 1, unusedEdges.Count);
+        for (int i = 0; i < Mathf.Min(loopsToAdd, unusedEdges.Count); i++)
+        {
+            activeEdges.Add(unusedEdges[i]);
+        }
+
+        // Высекаем L-коридоры вдоль выбранных граней графа
+        foreach (var edge in activeEdges)
+        {
+            CarveLCorridor(state, state.rooms[edge.roomA].center, state.rooms[edge.roomB].center, config.corridorWidth);
+        }
+    }
+
+    private static void CarveLCorridor(DungeonState state, Vector2Int start, Vector2Int end, int corridorWidth)
+    {
+        if (state.prng.NextDouble() < 0.5f)
+        {
+            CarveHorizontalCorridor(state, start.x, end.x, start.y, corridorWidth);
+            CarveVerticalCorridor(state, start.y, end.y, end.x, corridorWidth);
+        }
+        else
+        {
+            CarveVerticalCorridor(state, start.y, end.y, start.x, corridorWidth);
+            CarveHorizontalCorridor(state, start.x, end.x, end.y, corridorWidth);
+        }
+    }
+
+    private static void CarveHorizontalCorridor(DungeonState state, int xStart, int xEnd, int y, int corridorWidth)
+    {
+        int startX = Mathf.Min(xStart, xEnd);
+        int endX = Mathf.Max(xStart, xEnd);
+
+        int halfWidth = corridorWidth / 2;
+        int startY = y - halfWidth;
+        int endY = y + (corridorWidth - 1 - halfWidth);
+
+        for (int x = startX; x <= endX; x++)
+        {
+            for (int cy = startY; cy <= endY; cy++)
+            {
+                if (x >= 2 && x < state.mapWidth - 2 && cy >= 2 && cy < state.mapHeight - 2)
+                {
+                    if (state.grid[x, cy] == DungeonTile.Empty)
+                    {
+                        state.grid[x, cy] = DungeonTile.Corridor;
+                    }
+                }
+            }
+        }
+    }
+
+    private static void CarveVerticalCorridor(DungeonState state, int yStart, int yEnd, int x, int corridorWidth)
+    {
+        int startY = Mathf.Min(yStart, yEnd);
+        int endY = Mathf.Max(yStart, yEnd);
+
+        int halfWidth = corridorWidth / 2;
+        int startX = x - halfWidth;
+        int endX = x + (corridorWidth - 1 - halfWidth);
+
+        for (int y = startY; y <= endY; y++)
+        {
+            for (int cx = startX; cx <= endX; cx++)
+            {
+                if (cx >= 2 && cx < state.mapWidth - 2 && y >= 2 && y < state.mapHeight - 2)
+                {
+                    if (state.grid[cx, y] == DungeonTile.Empty)
+                    {
+                        state.grid[cx, y] = DungeonTile.Corridor;
+                    }
+                }
+            }
+        }
+    }
+
+    // ИСПРАВЛЕННЫЙ МЕТОД: Заполняет абсолютно всю пустоту (Empty) сплошными блоками стен (Wall)
+    public static void OutlineWalls(DungeonState state)
+    {
+        for (int x = 0; x < state.mapWidth; x++)
+        {
+            for (int y = 0; y < state.mapHeight; y++)
+            {
+                if (state.grid[x, y] == DungeonTile.Empty)
+                {
+                    state.grid[x, y] = DungeonTile.Wall;
+                }
+            }
+        }
+    }
+}
+-e 
+```
+
+# File: Assets/Scripts/Core/Generation/DungeonVisualizer.cs
+```csharp
+using UnityEngine;
+using UnityEngine.Tilemaps;
+
+public static class DungeonVisualizer
+{
+    // Отрисовка сгенерированной сетки DungeonTile на компонентах Tilemap Unity
+    public static void DrawTilemap(DungeonState state, Tilemap floorTilemap, Tilemap wallTilemap, TileBase floorTile, TileBase wallTile)
+    {
+        if (floorTilemap == null || wallTilemap == null || floorTile == null || wallTile == null) return;
+
+        // Полностью очищаем слои перед новым рендерингом
+        floorTilemap.ClearAllTiles();
+        wallTilemap.ClearAllTiles();
+
+        for (int x = 0; x < state.mapWidth; x++)
+        {
+            for (int y = 0; y < state.mapHeight; y++)
+            {
+                if (state.grid[x, y] == DungeonTile.Wall)
+                {
+                    wallTilemap.SetTile(new Vector3Int(x, y, 0), wallTile);
+                }
+                else if (state.grid[x, y] == DungeonTile.Floor || state.grid[x, y] == DungeonTile.Corridor)
+                {
+                    floorTilemap.SetTile(new Vector3Int(x, y, 0), floorTile);
+                }
+            }
+        }
+    }
+}
+-e 
+```
+
+# File: Assets/Scripts/Core/Generation/DijkstraPathfinder.cs
+```csharp
+using UnityEngine;
+using System.Collections.Generic;
+
+public static class DijkstraPathfinder
+{
+    // Запуск волнового алгоритма BFS от стартовой комнаты
+    public static void GenerateDijkstraMap(DungeonState state)
+    {
+        for (int x = 0; x < state.mapWidth; x++)
+        {
+            for (int y = 0; y < state.mapHeight; y++)
+            {
+                state.dijkstraMap[x, y] = -1; // -1 означает "не посещено"
+            }
+        }
+
+        if (state.rooms.Count == 0) return;
+
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+        Vector2Int startPoint = state.rooms[0].center;
+
+        state.dijkstraMap[startPoint.x, startPoint.y] = 0;
+        queue.Enqueue(startPoint);
+
+        while (queue.Count > 0)
+        {
+            Vector2Int curr = queue.Dequeue();
+            int currentDist = state.dijkstraMap[curr.x, curr.y];
+
+            Vector2Int[] neighbors = {
+                new Vector2Int(curr.x + 1, curr.y),
+                new Vector2Int(curr.x - 1, curr.y),
+                new Vector2Int(curr.x, curr.y + 1),
+                new Vector2Int(curr.x, curr.y - 1)
+            };
+
+            foreach (var n in neighbors)
+            {
+                if (n.x >= 0 && n.x < state.mapWidth && n.y >= 0 && n.y < state.mapHeight)
+                {
+                    // Прокладываем путь только по полу и коридорам
+                    if (state.dijkstraMap[n.x, n.y] == -1 && 
+                        (state.grid[n.x, n.y] == DungeonTile.Floor || state.grid[n.x, n.y] == DungeonTile.Corridor))
+                    {
+                        state.dijkstraMap[n.x, n.y] = currentDist + 1;
+                        queue.Enqueue(n);
+                    }
+                }
+            }
+        }
+    }
+
+    // Поиск комнаты с максимальным топологическим удалением от старта
+    public static RoomData FindExitRoom(DungeonState state)
+    {
+        if (state.rooms.Count == 0) return null;
+
+        int maxDistValue = 0;
+        RoomData exitRoom = state.rooms[0];
+
+        foreach (var room in state.rooms)
+        {
+            int dist = state.dijkstraMap[room.center.x, room.center.y];
+            if (dist > maxDistValue)
+            {
+                maxDistValue = dist;
+                exitRoom = room;
+            }
+        }
+
+        return exitRoom;
+    }
+
+    // Трассировка критического пути назад и выбор оптимальной точки для Силовых ворот
+    public static bool FindGateCoordinate(DungeonState state, RoomData exitRoom, out Vector2Int gateCoord, out int gateDistance)
+    {
+        gateCoord = Vector2Int.zero;
+        gateDistance = -1;
+
+        if (exitRoom == null || state.rooms.Count == 0) return false;
+
+        int maxDistValue = state.dijkstraMap[exitRoom.center.x, exitRoom.center.y];
+        if (maxDistValue <= 10) return false; // Слишком короткий путь для безопасного барьера
+
+        Vector2Int currentTrace = exitRoom.center;
+        List<Vector2Int> criticalPath = new List<Vector2Int>();
+
+        // Воспроизводим критический путь по шагам в обратном направлении
+        while (currentTrace != state.rooms[0].center)
+        {
+            criticalPath.Add(currentTrace);
+            int currentDist = state.dijkstraMap[currentTrace.x, currentTrace.y];
+
+            Vector2Int[] neighbors = {
+                new Vector2Int(currentTrace.x + 1, currentTrace.y),
+                new Vector2Int(currentTrace.x - 1, currentTrace.y),
+                new Vector2Int(currentTrace.x, currentTrace.y + 1),
+                new Vector2Int(currentTrace.x, currentTrace.y - 1)
+            };
+
+            Vector2Int nextStep = currentTrace;
+            foreach (var n in neighbors)
+            {
+                if (n.x >= 0 && n.x < state.mapWidth && n.y >= 0 && n.y < state.mapHeight)
+                {
+                    if (state.dijkstraMap[n.x, n.y] == currentDist - 1)
+                    {
+                        nextStep = n;
+                        break;
+                    }
+                }
+            }
+
+            if (nextStep == currentTrace) break; // Защита от бесконечного цикла
+            currentTrace = nextStep;
+        }
+
+        // Ищем оптимальное горлышко в коридоре (TILE_CORRIDOR), ближе к середине пути
+        int midIndex = criticalPath.Count / 2;
+        for (int i = midIndex; i < criticalPath.Count - 2; i++)
+        {
+            Vector2Int pathPoint = criticalPath[i];
+            if (state.grid[pathPoint.x, pathPoint.y] == DungeonTile.Corridor)
+            {
+                gateCoord = pathPoint;
+                gateDistance = state.dijkstraMap[pathPoint.x, pathPoint.y];
+                return true;
+            }
+        }
+
+        return false;
+    }
+}-e 
+```
+
+# File: Assets/Scripts/Core/Generation/DungeonConfig.cs
+```csharp
+using UnityEngine;
+
+[CreateAssetMenu(fileName = "DungeonConfig", menuName = "Dungeon/Config", order = 1)]
+public class DungeonConfig : ScriptableObject
+{
+    [Header("Настройки Геометрии подземелья")]
+    public int minRoomSize = 6;                 // Минимальная ширина/высота комнаты
+    public int maxRoomSize = 12;                // Максимальная ширина/высота комнаты
+    [Range(1, 4)] public int corridorWidth = 2; // Рекомендуется 2 или 3 для маневрирования
+    public int roomPadding = 2;                 // Минимальное расстояние между стенами комнат
+
+    [Header("Вероятности и баланс")]
+    [Range(0f, 1f)] public float crystalSpawnChance = 0.3f;
+    [Range(0f, 100f)] public float wormSpawnChance = 30f;
+    public float wormSpawnDelay = 8f;
+    public int wormUnlockLevel = 5;
+
+    [Header("Префабы Персонажей")]
+    public GameObject playerPrefab;
+    public GameObject stormtrooperPrefab;
+    public GameObject eliteStormtrooperPrefab;
+    public GameObject wormPrefab;
+
+    [Header("Префабы Предметов")]
+    public GameObject finishPrefab;
+    public GameObject crystalPrefab;
+    public GameObject diskettePrefab;
+}
+-e 
+```
+
+# File: Assets/Scripts/Core/Generation/DungeonData.cs
+```csharp
+using UnityEngine;
+using System.Collections.Generic;
+
+// Перечисление типов тайлов подземелья
+public enum DungeonTile
+{
+    Empty = 0,
+    Floor = 1,
+    Corridor = 2,
+    Wall = 3,
+    LockedGate = 4
+}
+
+// Данные прямоугольной комнаты
+public class RoomData
+{
+    public int id;
+    public int x;
+    public int y;
+    public int width;
+    public int height;
+
+    public Vector2Int center => new Vector2Int(x + width / 2, y + height / 2);
+
+    public RoomData(int id, int x, int y, int width, int height)
+    {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+    }
+
+    // Проверка наложения комнат
+    public bool Overlaps(RoomData other, int padding)
+    {
+        return (x - padding < other.x + other.width &&
+                x + width + padding > other.x &&
+                y - padding < other.y + other.height &&
+                y + height + padding > other.y);
+    }
+}
+
+// Ребро графа для связи комнат
+public struct DungeonEdge
+{
+    public int roomA;
+    public int roomB;
+    public float distance;
+
+    public DungeonEdge(int a, int b, float dist)
+    {
+        roomA = a;
+        roomB = b;
+        distance = dist;
+    }
+}
+
+// Контекст состояния генерируемого уровня (передается по цепочке)
+public class DungeonState
+{
+    public int mapWidth;
+    public int mapHeight;
+    public int currentLevel;
+    public DungeonTile[,] grid;
+    public int[,] dijkstraMap;
+    public List<RoomData> rooms = new List<RoomData>();
+    public List<GameObject> spawnedEntities = new List<GameObject>();
+    public System.Random prng;
+
+    public DungeonState(int width, int height, int level, System.Random random)
+    {
+        mapWidth = width;
+        mapHeight = height;
+        currentLevel = level;
+        prng = random;
+        grid = new DungeonTile[width, height];
+        dijkstraMap = new int[width, height];
+    }
+}
+-e 
+```
+
+# File: Assets/Scripts/Core/TutorialManager.cs
+```csharp
+using UnityEngine;
+using TMPro;
+using System.Collections;
+
+public class TutorialManager : MonoBehaviour
+{
+    public static TutorialManager Instance;
+
+    public RectTransform tutorialPanel;
+    public TextMeshProUGUI tutorialText;
+    public float displayDuration = 4f;
+    public float slideSpeed = 0.5f;
+
+    [Header("���������� (������ �� RectTransform)")]
+    public Vector2 hiddenPos; // ������� �� �������
+    public Vector2 visiblePos; // ������� �� ������
+
+    void Awake()
+    {
+        Instance = this;
+        // ��� ������ �������������� ������ ������
+        if(tutorialPanel != null) tutorialPanel.anchoredPosition = hiddenPos;
+    }
+
+    [ContextMenu("Test Show")] // ����� ������ ������ ������� �� ��������� � ����������
+    public void TestShow()
+    {
+        ShowTutorial("�������� ���������: ��� ������!");
+    }
+
+    public void ShowTutorial(string message)
+    {
+        if (tutorialPanel == null) return;
+        StopAllCoroutines();
+        StartCoroutine(TutorialRoutine(message));
+    }
+
+    IEnumerator TutorialRoutine(string message)
+    {
+        tutorialText.text = message;
+
+        // �����
+        float elapsed = 0;
+        while (elapsed < slideSpeed)
+        {
+            tutorialPanel.anchoredPosition = Vector2.Lerp(hiddenPos, visiblePos, elapsed / slideSpeed);
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+        tutorialPanel.anchoredPosition = visiblePos;
+
+        // �������� (���� ����� ������)
+        yield return new WaitForSecondsRealtime(displayDuration);
+
+        // ����
+        elapsed = 0;
+        while (elapsed < slideSpeed)
+        {
+            tutorialPanel.anchoredPosition = Vector2.Lerp(visiblePos, hiddenPos, elapsed / slideSpeed);
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+        tutorialPanel.anchoredPosition = hiddenPos;
+    }
+}-e 
+```
+
+# File: Assets/Scripts/Core/GameManager.cs
+```csharp
+﻿using UnityEngine;
+using System.Collections;
+
+public class GameManager : MonoBehaviour
+{
+    public static GameManager Instance;
+
+    [Header("Основные параметры")]
+    public int currentLevel = 1;
+    public int playerHealth = 3;
+    public int crystals = 0;
+    public int activeEnemyCount = 0;    // Точный счетчик активных врагов на сцене
+    public GridLevelGenerator generator;
+
+    [Header("Настройки Игры")]
+    public int winLevel = 15; 
+    public int totalEasterEggs = 5; 
+    public int collectedEasterEggs = 0; 
+
+    public delegate void UltimateAction();
+    public static event UltimateAction OnUltimateUsed;
+
+    [Header("Задержка смерти")]
+    public float gameOverDelay = 2.0f;
+
+    private string lastDeathReason = "";
+    [Header("Пасхалки (Ключи Холлидея)")]
+    public bool hasCopperKey = false;   // Ключ за зачистку 10+ уровня
+    public bool hasJadeKey = false;     // Ключ за победу над Червем
+    public bool hasCrystalKey = false;  // Ключ за секретную дискету
+
+    // Метод получения ключа
+    public void CollectKey(int keyIndex, string keyName)
+    {
+        if (keyIndex == 1 && !hasCopperKey) hasCopperKey = true;
+        else if (keyIndex == 2 && !hasJadeKey) hasJadeKey = true;
+        else if (keyIndex == 3 && !hasCrystalKey) hasCrystalKey = true;
+        else return;
+
+        // ОБНОВЛЯЕМ UI
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.UpdateKeys(hasCopperKey, hasJadeKey, hasCrystalKey);
+        }
+
+        if (TutorialManager.Instance != null)
+            TutorialManager.Instance.ShowTutorial("<color=yellow>КЛЮЧ ПОЛУЧЕН!</color>\n" + keyName);
+        
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.winSound);
+    }
+
+    // Исправленный метод: точный декремент счетчика и проверка зачистки (без FindGameObjectsWithTag)
+    public void CheckEnemyCount()
+    {
+        activeEnemyCount--;
+
+        // Условие: Уровень 10 или выше, ключа еще нет, и врагов больше не осталось
+        if (currentLevel >= 10 && !hasCopperKey && activeEnemyCount <= 0)
+        {
+            CollectKey(1, "Медный ключ (Зачистка 10+ уровня)");
+        }
+    }
+
+    void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    void Start()
+    {
+        if (MenuController.Instance != null) 
+        {
+            MenuController.Instance.ShowMainMenu();
+        }
+    }
+    
+    public void PrepareNewGame()
+    {
+        currentLevel = 1;
+        playerHealth = 3;
+        crystals = 0;
+        collectedEasterEggs = 0;
+        activeEnemyCount = 0; // Сброс счетчика врагов
+        
+        // СБРОС КЛЮЧЕЙ
+        hasCopperKey = false;
+        hasJadeKey = false;
+        hasCrystalKey = false;
+    }
+
+    public void StartNewGame()
+    {
+        currentLevel = 1;
+        playerHealth = 3;
+        crystals = 0;
+        collectedEasterEggs = 0;
+        activeEnemyCount = 0; // Сброс счетчика врагов
+        StartLevel();
+    }
+
+    public void StartLevel()
+    {
+        Time.timeScale = 1; 
+        playerHealth = 3; 
+        activeEnemyCount = 0; // Инициализация счетчика при старте уровня
+        
+        if (MenuController.Instance != null) MenuController.Instance.HideAll();
+        
+        if (generator == null) generator = Object.FindAnyObjectByType<GridLevelGenerator>();
+        if (generator != null) generator.Generate(currentLevel);
+        
+        if (currentLevel == 1)
+        {
+            Invoke("ShowFirstTutorial", 2f);
+        }
+
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.UpdateLevel(currentLevel);
+            UIManager.Instance.UpdateHearts(playerHealth);
+            UIManager.Instance.UpdateCrystals(crystals);
+            UIManager.Instance.UpdateKeys(hasCopperKey, hasJadeKey, hasCrystalKey);
+        }
+    }
+
+    void ShowFirstTutorial()
+    {
+        if (TutorialManager.Instance != null)
+            TutorialManager.Instance.ShowTutorial("МЫШЬ/стрелки: Вращение\nWASD: Движение");
+        
+        Invoke("ShowSecondTutorial", 5f);
+    }
+
+    void ShowSecondTutorial()
+    {
+        TutorialManager.Instance.ShowTutorial("ОТРАЖАЙ пули мечом или нажми Е для удара");
+    }
+
+    public bool IsTrueVictory()
+    {
+        return hasCopperKey && hasJadeKey && hasCrystalKey;
+    }
+
+    public void LevelCompleted()
+    {
+        Time.timeScale = 0; 
+        SaveMyRecord();
+
+        if (currentLevel >= winLevel)
+        {
+            if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(AudioManager.Instance.winSound);
+            
+            if (IsTrueVictory())
+            {
+                MenuController.Instance.ShowVictory(3, 3);
+            }
+            else
+            {
+                MenuController.Instance.ShowVictory(0, 3);
+            }
+        }
+        else
+        {
+            currentLevel++;
+            MenuController.Instance.ShowTransition(currentLevel);
+        }
+    }
+
+    public void GameOver(string reason)
+    {
+        SaveMyRecord();
+        if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(AudioManager.Instance.gameOverSound);
+        StartCoroutine(GameOverRoutine(reason));
+    }
+
+    private IEnumerator GameOverRoutine(string reason)
+    {
+        yield return new WaitForSecondsRealtime(gameOverDelay);
+        Time.timeScale = 0;
+        if (MenuController.Instance != null) 
+            MenuController.Instance.ShowGameOver(reason, currentLevel);
+    }
+
+    private void SaveMyRecord()
+    {
+        int lastRecord = PlayerPrefs.GetInt("Record", 0);
+        if (currentLevel > lastRecord)
+        {
+            PlayerPrefs.SetInt("Record", currentLevel);
+            PlayerPrefs.Save();
+        }
+    }
+
+    public void AddCrystal()
+    {
+        if (crystals < 3)
+        {
+            crystals++;
+            if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(AudioManager.Instance.crystalTakenSound);
+            
+            if (UIManager.Instance != null) UIManager.Instance.UpdateCrystals(crystals);
+        }
+    }
+
+    public bool TryUseUltimate()
+    {
+        if (crystals >= 3)
+        {
+            crystals = 0;
+            if (UIManager.Instance != null) UIManager.Instance.UpdateCrystals(crystals);
+            if (OnUltimateUsed != null) OnUltimateUsed(); 
+            return true;
+        }
+        return false;
+    }
+
+    public void AddEasterEgg()
+    {
+        collectedEasterEggs++;
+    }
+}
+-e 
+```
+
+# File: Assets/Scripts/Core/GridLevelGenerator.cs
+```csharp
+using UnityEngine;
+using UnityEngine.Tilemaps;
+
+public class GridLevelGenerator : MonoBehaviour
+{
+    [Header("Активная конфигурация")]
+    public DungeonConfig activeConfig;         // ScriptableObject со всеми правилами и префабами
+
+    [Header("Ссылки на сцену")]
+    public GameObject playerReference;         // Ссылка на префаб джедая на сцене
+    public Tilemap floorTilemap;               // Слой пола
+    public Tilemap wallTilemap;                // Слой стен
+    public TileBase wallTile;                  // Тайлик стены
+    public TileBase floorTile;                  // Тайлик пола
+
+    private DungeonState currentState;
+    private System.Random prng;
+    private int currentLevelLoaded = 1;
+
+    // Отладочный метод для быстрой регенерации во время тестов на клавишу G
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.G))
+        {
+            Debug.Log($"<color=yellow>[DEBUG]</color> Принудительная модульная генерация уровня {currentLevelLoaded}...");
+            Generate(currentLevelLoaded);
+        }
+    }
+
+    // Главная точка входа для ядра игры (вызывается из GameManager)
+    public void Generate(int level)
+    {
+        currentLevelLoaded = level;
+
+        if (activeConfig == null)
+        {
+            Debug.LogError("GridLevelGenerator: Не назначен ассет конфигурации activeConfig в инспекторе!");
+            return;
+        }
+
+        // Инициализируем локальный PRNG для детерминизма на основе сида времени
+        int seed = System.DateTime.Now.Millisecond + level * 100;
+        prng = new System.Random(seed);
+
+        // Масштабируем размеры карты на основе уровня
+        int targetRoomCount = Mathf.Min(4 + level, 12);
+        int mapWidth = Mathf.Min(40 + (level * 3), 85);
+        int mapHeight = Mathf.Min(40 + (level * 3), 85);
+
+        // Инициализируем чистый контекст состояния
+        currentState = new DungeonState(mapWidth, mapHeight, level, prng);
+
+        GenerateFullLevel(targetRoomCount);
+    }
+
+    [ContextMenu("Generate Full Level")]
+    public void GenerateFullLevelFromInspector()
+    {
+        Generate(currentLevelLoaded);
+    }
+
+    private void GenerateFullLevel(int targetRoomCount)
+    {
+        ClearOldLevel();
+
+        // Поочередно вызываем чистые расчетные модули (Конвейер Variant A)
+        
+        // 1. Расстановка комнат в сетке
+        DungeonLayoutGenerator.PlaceRooms(currentState, activeConfig, targetRoomCount);
+
+        // 2. Построение MST и нелинейных связей (коридоры)
+        DungeonLayoutGenerator.ConnectRooms(currentState, activeConfig);
+
+        // 3. Обводка стен
+        DungeonLayoutGenerator.OutlineWalls(currentState);
+
+        // 4. Построение волновой карты расстояний Дийкстры
+        DijkstraPathfinder.GenerateDijkstraMap(currentState);
+
+        // 5. Физическая отрисовка тайлов на сцене
+        DungeonVisualizer.DrawTilemap(currentState, floorTilemap, wallTilemap, floorTile, wallTile);
+
+        // 6. Наполнение уровня объектами, врагами и воротами по критическому пути
+        DungeonSpawner.SpawnEntities(currentState, activeConfig, floorTilemap, playerReference);
+
+        // 7. Планирование появления Космического Червя (Начиная с 5 уровня)
+        if (currentLevelLoaded >= activeConfig.wormUnlockLevel && activeConfig.wormPrefab != null)
+        {
+            float roll = (float)(prng.NextDouble() * 100.0);
+            if (roll <= activeConfig.wormSpawnChance)
+            {
+                Invoke("SpawnSpaceWorm", activeConfig.wormSpawnDelay);
+                Debug.Log("<color=orange>ЧЕРВЬ ЗАПЛАНИРОВАН: появится через " + activeConfig.wormSpawnDelay + " сек.</color>");
+            }
+        }
+    }
+
+    // Метод вызова Космического Червя на таймере (MonoBehaviour)
+    public void SpawnSpaceWorm()
+    {
+        if (activeConfig == null || activeConfig.wormPrefab == null || playerReference == null) return;
+
+        float angle = (float)(prng.NextDouble() * 360.0) * Mathf.Deg2Rad;
+        Vector3 playerPos = playerReference.transform.position;
+        Vector3 spawnPos = playerPos + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * 25f;
+
+        GameObject worm = Instantiate(activeConfig.wormPrefab, spawnPos, Quaternion.identity);
+        
+        if (currentState != null)
+        {
+            currentState.spawnedEntities.Add(worm); 
+        }
+
+        Debug.Log("<color=red>ВНИМАНИЕ: Пробудился Космический Червь!</color>");
+
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.sandwormRoarSound);
+        }
+    }
+
+    private void ClearOldLevel()
+    {
+        CancelInvoke("SpawnSpaceWorm");
+
+        // Очищаем сгенерированные сущности текущей сессии
+        if (currentState != null)
+        {
+            foreach (GameObject obj in currentState.spawnedEntities)
+            {
+                if (obj != null)
+                {
+                    Destroy(obj);
+                }
+            }
+            currentState.spawnedEntities.Clear();
+        }
+
+        // Страховочная очистка сцены по тегам от случайных дубликатов
+        string[] tags = { "Enemy", "Finish", "Crystal", "Worm" };
+        foreach (string tag in tags) 
+        {
+            GameObject[] objects = GameObject.FindGameObjectsWithTag(tag);
+            foreach (GameObject obj in objects) Destroy(obj);
+        }
+    }
+}
+-e 
+```
+
+# File: Assets/Scripts/Enemy/SuperStormtrooper.cs
+```csharp
+using UnityEngine;
+
+public class SuperStormtrooper : BaseStormtrooper
+{
+    [Header("Специфичные Настройки (Super)")]
+    public float moveSpeed = 3f;
+    public float visionRadius = 10f;
+
+    private Rigidbody2D rb;
+    private bool canSeePlayer = false;
+
+    protected override void Start()
+    {
+        base.Start(); // Вызывает Start() родительского класса, чтобы найти игрока
+        rb = GetComponent<Rigidbody2D>();
+    }
+
+    void FixedUpdate()
+    {
+        if (player == null) return;
+
+        CheckLineOfSight();
+
+        if (canSeePlayer)
+        {
+            // Движение к джедаю
+            Vector2 direction = (player.position - transform.position).normalized;
+            rb.MovePosition(rb.position + direction * moveSpeed * Time.fixedDeltaTime);
+
+            // Поворот штурмовика в сторону бега
+            float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            rb.rotation = angle - 90f;
+        }
+    }
+
+    private void CheckLineOfSight()
+    {
+        float distanceToPlayer = Vector2.Distance(transform.position, player.position);
+        
+        if (distanceToPlayer > visionRadius)
+        {
+            canSeePlayer = false; 
+            return;
+        }
+
+        Vector2 direction = player.position - transform.position;
+        RaycastHit2D[] hits = Physics2D.RaycastAll(transform.position, direction, visionRadius);
+
+        canSeePlayer = false;
+
+        foreach (var hit in hits)
+        {
+            if (hit.collider.isTrigger || hit.collider.CompareTag("Enemy")) continue;
+
+            if (hit.collider.CompareTag("Wall") || hit.collider.CompareTag("Perimeter"))
+            {
+                break; 
+            }
+
+            if (hit.collider.CompareTag("Player"))
+            {
+                canSeePlayer = true;
+                break;
+            }
+        }
+    }
+
+    protected override void ExecuteShooting()
+    {
+        // Супер-штурмовик стреляет по таймеру только тогда, когда видит игрока
+        if (canSeePlayer && firePoint != null)
+        {
+            Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
+            
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperShootSound);
+            }
+        }
+    }
+}-e 
 ```
 
 # File: Assets/Scripts/Enemy/EliteStormtrooper.cs
 ```csharp
 using UnityEngine;
 
-public class EliteStormtrooper : MonoBehaviour
+public class EliteStormtrooper : BaseStormtrooper
 {
+    // Элитный стреляет без разброса (напрямую в игрока)
+    protected override void ExecuteShooting()
+    {
+        if (player == null || firePoint == null) return;
+
+        Vector2 direction = player.position - firePoint.position;
+        float angleToPlayer = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+
+        firePoint.rotation = Quaternion.Euler(0, 0, angleToPlayer - 90f);
+        Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
+
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperShootSound);
+        }
+    }
+}-e 
+```
+
+# File: Assets/Scripts/Enemy/BaseStormtrooper.cs
+```csharp
+using UnityEngine;
+
+public abstract class BaseStormtrooper : MonoBehaviour
+{
+    [Header("Базовые Префабы")]
     public GameObject blasterBoltPrefab;
     public Transform firePoint;
+    public GameObject deathEffectPrefab;
+
+    [Header("Базовые Настройки Стрельбы")]
     public float minFireRate = 1f;
-    public float maxFireRate = 2.5f; // ���� ������� ��������
+    public float maxFireRate = 3f;
+    public float fireRateMultiplier = 1.5f;
 
-    private float nextFireTime;
-    private Transform player;
+    protected float nextFireTime;
+    protected Transform player;
 
-    void Start()
+    protected virtual void Start()
     {
         SetNextFireTime();
+
+        // Все штурмовики автоматически находят джедая на старте
         GameObject p = GameObject.FindWithTag("Player");
         if (p != null) player = p.transform;
     }
 
-    void Update()
+    protected virtual void Update()
     {
         if (Time.time >= nextFireTime)
         {
-            ShootAtPlayer();
+            ExecuteShooting();
             SetNextFireTime();
         }
     }
 
-    private void SetNextFireTime()
+    // Каждый подкласс должен реализовать свою уникальную логику стрельбы
+    protected abstract void ExecuteShooting();
+
+    protected virtual void SetNextFireTime()
     {
-        nextFireTime = Time.time + Random.Range(minFireRate, maxFireRate);
+        float baseCooldown = Random.Range(minFireRate, maxFireRate);
+        float actualCooldown = baseCooldown / fireRateMultiplier;
+        nextFireTime = Time.time + actualCooldown;
     }
 
-    private void ShootAtPlayer()
+    // Все типы штурмовиков теперь умирают абсолютно одинаково
+    public virtual void TakeDamage()
     {
-        if (player == null) return;
+        if (deathEffectPrefab != null)
+        {
+            Instantiate(deathEffectPrefab, transform.position, Quaternion.identity);
+        }
 
-        // ��������� ���� �� ������
-        Vector2 lookDir = player.position - firePoint.position;
-        float angle = Mathf.Atan2(lookDir.y, lookDir.x) * Mathf.Rad2Deg;
-        
-        // ������������ ����� �������� ����� �� ������ (�������� 90, ���� ���� ������� �����)
-        firePoint.rotation = Quaternion.Euler(0, 0, angle - 90f);
+        if (CameraFollow.Instance != null)
+        {
+            CameraFollow.Instance.Shake(0.08f, 0.12f); 
+        }
 
-        // ��������
-        Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
-    }
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperDeathSound);
+        }
 
-    public void TakeDamage()
-    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.CheckEnemyCount();
+        }
+
         Destroy(gameObject);
     }
-}
+}-e 
 ```
 
 # File: Assets/Scripts/Enemy/SpaceWorm.cs
@@ -7375,21 +8785,18 @@ public class SpaceWorm : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D other)
     {
-        // ���� �������� ������ � ��� �� ��������
         if (other.CompareTag("Player") && !isRetreating)
         {
             JediController jedi = other.GetComponent<JediController>();
             if (jedi != null)
             {
-                // �������� ��� �����
-                for (int i = 0; i < 3; i++) jedi.TakeDamage("����������� ����� ������ ��������"); 
+                // Передаем transform.position червя!
+                for (int i = 0; i < 3; i++) jedi.TakeDamage("Космический червь укусил джедая", transform.position); 
             }
 
-            Debug.Log("����� ���� ������ � ����� ��������...");
+            Debug.Log("Червь задел джедая...");
             
-            // ��������� � ����� ����������� ����� ���
             isRetreating = true;
-            // �������� � 2 ���� ���������, ��� ����� �� �����
             currentRetreatSpeed = speed / 2f; 
         }
     }
@@ -7407,170 +8814,39 @@ public class SpaceWorm : MonoBehaviour
         
         Destroy(gameObject);
     }
-}
+}-e 
 ```
 
 # File: Assets/Scripts/Enemy/Stormtrooper.cs
 ```csharp
 ﻿using UnityEngine;
 
-public class Stormtrooper : MonoBehaviour
+// Наследуется от BaseStormtrooper вместо MonoBehaviour
+public class Stormtrooper : BaseStormtrooper
 {
-    public GameObject blasterBoltPrefab;
-    public Transform firePoint;
-    public float minFireRate = 1f;
-    public float maxFireRate = 3f;
+    [Header("Специфичные Настройки (Standard)")]
+    public float spreadAngle = 40f; 
 
-    private float nextFireTime;
-    
-    void Start()
+    protected override void ExecuteShooting()
     {
-        SetNextFireTime();
-    }
+        if (player == null || firePoint == null) return;
 
-    void Update()
-    {
-        if (Time.time >= nextFireTime)
-        {
-            ShootRandomly();
-            SetNextFireTime();
-        }
-    }
+        Vector2 direction = player.position - firePoint.position;
+        float angleToPlayer = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
 
-    private void SetNextFireTime()
-    {
-        nextFireTime = Time.time + Random.Range(minFireRate, maxFireRate);
-    }
+        float baseAngle = angleToPlayer - 90f;
+        float randomSpread = Random.Range(-spreadAngle, spreadAngle);
+        float finalAngle = baseAngle + randomSpread;
 
-    private void ShootRandomly()
-    {
-        float randomAngle = Random.Range(0f, 360f);
-        firePoint.rotation = Quaternion.Euler(0, 0, randomAngle);
+        firePoint.rotation = Quaternion.Euler(0, 0, finalAngle);
         Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
 
-        // ЗВУК: Выстрел штурмовика
         if (AudioManager.Instance != null)
         {
             AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperShootSound);
         }
     }
-
-    public void TakeDamage()
-    {
-        Debug.Log("Штурмовик повержен!");
-
-        // ЗВУК: Смерть штурмовика
-        if (AudioManager.Instance != null)
-        {
-            AudioManager.Instance.PlaySFX(AudioManager.Instance.stormtrooperDeathSound);
-        }
-
-        Destroy(gameObject);
-    }
-}
-
-```
-
-# File: Assets/Scripts/Enemy/SuperStormtrooper.cs
-```csharp
-using UnityEngine;
-
-public class SuperStormtrooper : MonoBehaviour
-{
-    [Header("��������")]
-    public GameObject blasterBoltPrefab;
-    public Transform firePoint;
-    public float fireRate = 1.5f;
-
-    [Header("�������� � ������")]
-    public float moveSpeed = 3f;
-    public float visionRadius = 10f; // ��� ������ �� �����
-    
-    private float nextFireTime;
-    private Transform player;
-    private Rigidbody2D rb;
-    private bool canSeePlayer = false;
-
-    void Start()
-    {
-        rb = GetComponent<Rigidbody2D>();
-        nextFireTime = Time.time + fireRate;
-        GameObject p = GameObject.FindWithTag("Player");
-        if (p != null) player = p.transform;
-    }
-
-    void FixedUpdate()
-    {
-        if (player == null) return;
-
-        CheckLineOfSight();
-
-        if (canSeePlayer)
-        {
-            // ����� � ������
-            Vector2 direction = (player.position - transform.position).normalized;
-            rb.MovePosition(rb.position + direction * moveSpeed * Time.fixedDeltaTime);
-
-            // ������������ ������ ���������� � ������
-            float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-            rb.rotation = angle - 90f;
-
-            // �������� �� �������
-            if (Time.time >= nextFireTime)
-            {
-                Shoot();
-                nextFireTime = Time.time + fireRate;
-            }
-        }
-    }
-
-    private void CheckLineOfSight()
-    {
-        float distanceToPlayer = Vector2.Distance(transform.position, player.position);
-        
-        if (distanceToPlayer > visionRadius)
-        {
-            canSeePlayer = false; // ������� ������
-            return;
-        }
-
-        Vector2 direction = player.position - transform.position;
-        
-        // ������� ���. RaycastAll ������ ��, ����� ��� ������ ���
-        RaycastHit2D[] hits = Physics2D.RaycastAll(transform.position, direction, visionRadius);
-
-        canSeePlayer = false;
-
-        foreach (var hit in hits)
-        {
-            // ���������� �������� (����, ���������, ������ �����) � ������ ������
-            if (hit.collider.isTrigger || hit.collider.CompareTag("Enemy")) continue;
-
-            // ���� ��� ��������� �� ����� �� ������, ������ �� ��� �� �����
-            if (hit.collider.CompareTag("Wall") || hit.collider.CompareTag("Perimeter"))
-            {
-                break; 
-            }
-
-            // ���� ��� ��������� �� ������ - �� ��� �����!
-            if (hit.collider.CompareTag("Player"))
-            {
-                canSeePlayer = true;
-                break;
-            }
-        }
-    }
-
-    private void Shoot()
-    {
-        Instantiate(blasterBoltPrefab, firePoint.position, firePoint.rotation);
-    }
-
-    public void TakeDamage()
-    {
-        Destroy(gameObject);
-    }
-}
+}-e 
 ```
 
 # File: Assets/Scripts/Environment/SecretDiskette.cs
@@ -7581,19 +8857,83 @@ public class SecretDiskette : MonoBehaviour
 {
     void OnTriggerEnter2D(Collider2D other)
     {
-        // ���������, ��� ������� �������� ������ �����
+        // ���������, ��� ������� �������� ������ �����
         if (other.CompareTag("Player"))
         {
             if (GameManager.Instance != null)
             {
-                // �������� ��������� 3-�� �����
-                GameManager.Instance.CollectKey(3, "����������� ���� (������� ��������)");
+                // �������� ��������� 3-�� �����
+                GameManager.Instance.CollectKey(3, "����������� ���� (������� ��������)");
             }
 
-            // ���������� ������� ����� �������
+            // ���������� ������� ����� �������
             Destroy(gameObject);
         }
     }
-}
+}-e 
+```
+
+# File: Assets/Scripts/Environment/BouncingCrystal.cs
+```csharp
+using UnityEngine;
+using System.Collections;
+
+public class BouncingCrystal : MonoBehaviour
+{
+    [Header("Настройки физики")]
+    public float throwForce = 6f;       
+    public float pickupDelay = 0.8f;    
+
+    private Rigidbody2D rb;
+    private Collider2D col;
+
+    void Awake()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        col = GetComponent<Collider2D>();
+
+        if (rb == null) rb = gameObject.AddComponent<Rigidbody2D>();
+        
+        rb.gravityScale = 0f;
+        rb.linearDamping = 3.5f; 
+
+        // Выталкиваем кристалл в случайном направлении при спавне
+        float randomAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
+        Vector2 throwDirection = new Vector2(Mathf.Cos(randomAngle), Mathf.Sin(randomAngle));
+        rb.linearVelocity = throwDirection * throwForce;
+    }
+
+    void Start()
+    {
+        // Находим джедая в сцене по тегу Player
+        GameObject player = GameObject.FindWithTag("Player");
+        if (player != null)
+        {
+            Collider2D playerCol = player.GetComponent<Collider2D>();
+            
+            // Если нашли игрока, временно игнорируем столкновения с ним
+            if (playerCol != null && col != null)
+            {
+                // Это отключает коллизии и триггер сбора только для игрока, 
+                // позволяя кристаллу при этом ударяться о стены!
+                Physics2D.IgnoreCollision(col, playerCol, true);
+                
+                // Запускаем корутину восстановления сбора
+                StartCoroutine(EnablePickupAfterDelay(playerCol));
+            }
+        }
+    }
+
+    private IEnumerator EnablePickupAfterDelay(Collider2D playerCol)
+    {
+        yield return new WaitForSeconds(pickupDelay);
+        
+        if (col != null && playerCol != null)
+        {
+            // Снова разрешаем коллизии и сбор кристалла игроком
+            Physics2D.IgnoreCollision(col, playerCol, false);
+        }
+    }
+}-e 
 ```
 

@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa81f4d7bf5719390b45648d84725f49, type: 3}
+  m_Name: DungeonConfig
+  m_EditorClassIdentifier: 
+  minRoomSize: 6
+  maxRoomSize: 12
+  corridorWidth: 2
+  roomPadding: 2
+  crystalSpawnChance: 0.3
+  wormSpawnChance: 30
+  wormSpawnDelay: 8
+  wormUnlockLevel: 5
+  playerPrefab: {fileID: 0}
+  stormtrooperPrefab: {fileID: 0}
+  eliteStormtrooperPrefab: {fileID: 0}
+  wormPrefab: {fileID: 0}
+  finishPrefab: {fileID: 0}
+  crystalPrefab: {fileID: 0}
+  diskettePrefab: {fileID: 0}
+  keyPrefab: {fileID: 0}
+  lockedGatePrefab: {fileID: 0}
+  hazardPrefab: {fileID: 0}

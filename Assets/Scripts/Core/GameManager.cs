@@ -9,7 +9,7 @@ public class GameManager : MonoBehaviour
     public int currentLevel = 1;
     public int playerHealth = 3;
     public int crystals = 0;
-    // public LevelGenerator generator;
+    public int activeEnemyCount = 0;    // Точный счетчик активных врагов на сцене
     public GridLevelGenerator generator;
 
     [Header("Настройки Игры")]
@@ -43,27 +43,22 @@ public class GameManager : MonoBehaviour
             UIManager.Instance.UpdateKeys(hasCopperKey, hasJadeKey, hasCrystalKey);
         }
 
-        // Звуки и туториалы (как были раньше)
         if (TutorialManager.Instance != null)
             TutorialManager.Instance.ShowTutorial("<color=yellow>КЛЮЧ ПОЛУЧЕН!</color>\n" + keyName);
         
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX(AudioManager.Instance.winSound);
     }
-        // Проверка на уничтожение всех врагов (для Медного ключа)
+
+    // Исправленный метод: точный декремент счетчика и проверка зачистки (без FindGameObjectsWithTag)
     public void CheckEnemyCount()
     {
-        // Условие: Уровень 10 или выше и ключа еще нет
-        if (currentLevel >= 10 && !hasCopperKey)
+        activeEnemyCount--;
+
+        // Условие: Уровень 10 или выше, ключа еще нет, и врагов больше не осталось
+        if (currentLevel >= 10 && !hasCopperKey && activeEnemyCount <= 0)
         {
-            // Считаем всех врагов на сцене
-            GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
-            
-            // Если остался всего один (тот, который сейчас умирает), значит уровень зачищен
-            if (enemies.Length <= 1)
-            {
-                CollectKey(1, "Медный ключ (Зачистка 10+ уровня)");
-            }
+            CollectKey(1, "Медный ключ (Зачистка 10+ уровня)");
         }
     }
 
@@ -94,6 +89,7 @@ public class GameManager : MonoBehaviour
         playerHealth = 3;
         crystals = 0;
         collectedEasterEggs = 0;
+        activeEnemyCount = 0; // Сброс счетчика врагов
         
         // СБРОС КЛЮЧЕЙ
         hasCopperKey = false;
@@ -107,6 +103,7 @@ public class GameManager : MonoBehaviour
         playerHealth = 3;
         crystals = 0;
         collectedEasterEggs = 0;
+        activeEnemyCount = 0; // Сброс счетчика врагов
         StartLevel();
     }
 
@@ -114,6 +111,7 @@ public class GameManager : MonoBehaviour
     {
         Time.timeScale = 1; 
         playerHealth = 3; 
+        activeEnemyCount = 0; // Инициализация счетчика при старте уровня
         
         if (MenuController.Instance != null) MenuController.Instance.HideAll();
         
@@ -131,7 +129,6 @@ public class GameManager : MonoBehaviour
             UIManager.Instance.UpdateHearts(playerHealth);
             UIManager.Instance.UpdateCrystals(crystals);
             UIManager.Instance.UpdateKeys(hasCopperKey, hasJadeKey, hasCrystalKey);
-
         }
     }
 
@@ -148,13 +145,11 @@ public class GameManager : MonoBehaviour
         TutorialManager.Instance.ShowTutorial("ОТРАЖАЙ пули мечом или нажми Е для удара");
     }
 
-        // В GameManager.cs добавь этот метод для проверки всех ключей
     public bool IsTrueVictory()
     {
         return hasCopperKey && hasJadeKey && hasCrystalKey;
     }
 
-    // Измени метод LevelCompleted, чтобы он учитывал ключи
     public void LevelCompleted()
     {
         Time.timeScale = 0; 
@@ -162,17 +157,15 @@ public class GameManager : MonoBehaviour
 
         if (currentLevel >= winLevel)
         {
-            // ЗВУК: Эпичная победа
             if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(AudioManager.Instance.winSound);
             
-            // ПРОВЕРКА: Если собраны все ключи, вызываем "Истинную победу"
             if (IsTrueVictory())
             {
-                MenuController.Instance.ShowVictory(3, 3); // Передаем 3 из 3 пасхалок
+                MenuController.Instance.ShowVictory(3, 3);
             }
             else
             {
-                MenuController.Instance.ShowVictory(0, 3); // Обычная победа без пасхалок
+                MenuController.Instance.ShowVictory(0, 3);
             }
         }
         else
@@ -185,7 +178,6 @@ public class GameManager : MonoBehaviour
     public void GameOver(string reason)
     {
         SaveMyRecord();
-        // ЗВУК: Конец игры
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(AudioManager.Instance.gameOverSound);
         StartCoroutine(GameOverRoutine(reason));
     }
@@ -207,18 +199,12 @@ public class GameManager : MonoBehaviour
             PlayerPrefs.Save();
         }
     }
-    
-
-    // ==========================================
-    // ЛОГИКА СБОРА
-    // ==========================================
 
     public void AddCrystal()
     {
         if (crystals < 3)
         {
             crystals++;
-            // ЗВУК: Кристалл поднят
             if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX(AudioManager.Instance.crystalTakenSound);
             
             if (UIManager.Instance != null) UIManager.Instance.UpdateCrystals(crystals);
